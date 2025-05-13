@@ -1,0 +1,6 @@
+*.vscode*
+.clangd
+files/*/*
+*lendomerge.dSYM*
+build
+lendomerge
