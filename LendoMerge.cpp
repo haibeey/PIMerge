@@ -227,3 +227,8 @@ void LendoMerge::color_correct_sequence(const std::vector<Image *> &imgs) {
     destroy_image_f(&imgf);
   }
 }
+
+
+void LendoMerge::bilinear_interpolate(Image *img){
+
+}

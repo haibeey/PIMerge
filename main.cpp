@@ -42,8 +42,6 @@ int main() {
   return 0;
 }
 
-// g++-14  -Iheader-files/stitcher  -I./
-// -L/Users/abrahamakerele/p-h/lendostuff/stitcher/installs/native-stitcher/macos/x86_64/lib
-// -lNativeSticher  -o lendomerge LendoMerge.cpp main.cpp export
-// DYLD_LIBRARY_PATH=/Users/abrahamakerele/p-h/lendostuff/stitcher/installs/native-stitcher/macos/x86_64/lib
+// g++-14  -Iheader-files/stitcher  -I./ -L/Users/abrahamakerele/p-h/lendostuff/stitcher/installs/native-stitcher/macos/x86_64/lib -lNativeSticher  -o lendomerge LendoMerge.cpp main.cpp
+// export DYLD_LIBRARY_PATH=/Users/abrahamakerele/p-h/lendostuff/stitcher/installs/native-stitcher/macos/x86_64/lib
 // ./lendomerge

@@ -1,8 +1,28 @@
-#include "jpeg.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+
+#include "turbojpeg.h"
+#include <stdlib.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <math.h>
+#include <time.h>
+#include <string.h>
+#include "jpeg.h"
+#include "utils.h"
+
+static const float GAUSSIAN_KERNEL[5][5] = {
+    {1.0 / 256, 4.0 / 256, 6.0 / 256, 4.0 / 256, 1.0 / 256},
+    {4.0 / 256, 16.0 / 256, 24.0 / 256, 16.0 / 256, 4.0 / 256},
+    {6.0 / 256, 24.0 / 256, 36.0 / 256, 24.0 / 256, 6.0 / 256},
+    {4.0 / 256, 16.0 / 256, 24.0 / 256, 16.0 / 256, 4.0 / 256},
+    {1.0 / 256, 4.0 / 256, 6.0 / 256, 4.0 / 256, 1.0 / 256}};
+
+static const float WEIGHT_EPS = 1e-5f;
+
+
 
 #define MAX_BANDS 7
 typedef enum
@@ -30,22 +50,6 @@ typedef struct
 } Rect;
 
 Point br(Rect r);
-
-
-typedef struct
-{
-    int num_bands;
-    Rect output_size;
-    Rect real_out_size;
-    int *out_width_levels;
-    int *out_height_levels;
-    ImageF *out;
-    ImageF *out_mask;
-    ImageS *final_out;
-    Image result;
-    ImageS *img_laplacians;
-    ImageS *mask_gaussian;
-} Blender;
 
 typedef struct
 {
@@ -119,25 +123,46 @@ typedef struct
     WorkerThreadArgs *workerThreadArgs;
 } ThreadArgs;
 
-Blender *create_blender(Rect out_size, int nb);
-int feed(Blender *b, Image *img, Image *maskImg, Point tl);
-void blend(Blender *b);
-void destroy_blender(Blender *blender);
+
 Image create_image(const char *filename);
+
+void distance_transform(Image *mask);
+
 Image create_empty_image(int width, int height, int channels);
 ImageS create_empty_image_s(int width, int height, int channels);
 ImageF create_empty_image_f(int width, int height, int channels);
+
 Image create_image_mask(int width, int height, float range, int left, int right);
 int save_image(const Image *img, char *out_filename);
+
 int image_size(Image *img);
+int image_size_s(ImageS *img);
+int image_size_f(ImageF *img);
+
 void destroy_image(Image *img);
 void destroy_image_s(ImageS *img);
 void destroy_image_f(ImageF *img);
+
 Image upsample( Image *img,float upsample_factor);
-Image downsample( Image *img);
-ImageS downsample_s( ImageS *img);
+ImageS upsample_image_s( ImageS *img,float upsample_factor);
+ImageF upsample_image_f( ImageF *img,float upsample_factor);
+
+void *down_sample_operation(void *args);
+void *down_sample_operation_s(void *args);
+void *down_sample_operation_f(void *args);
+
+void *upsample_worker(void *args);
+void *upsample_worker_s(void *args);
+void *upsample_worker_f(void *args);
+
+Image downsample(Image *img);
+ImageS downsample_s(ImageS *img);
+ImageF downsample_f(ImageF *img);
+
 void crop_image(Image *img, int cut_top, int cut_bottom, int cut_left, int cut_right);
 void parallel_operator(OperatorType operatorType, ParallelOperatorArgs *arg);
+
+
 #ifdef __cplusplus
 }
 #endif

@@ -4,7 +4,7 @@
 
 #include <vector>
 #include "jpeg.h"
-#include "laplace_blending.h"
+#include "blending.h"
 
 class LendoMerge
 {
@@ -25,4 +25,5 @@ public:
 
     void findSeam(Image *img1, Image *img2, const char *mask1_filename, const char *mask2_filename);
     void color_correct_sequence(const std::vector<Image *> &imgs);
+    void bilinear_interpolate(Image *img);
 };
