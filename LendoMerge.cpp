@@ -1,14 +1,24 @@
 
+#include "simde/simde/x86/avx2.h"
 #include <algorithm>
 #include <cassert>
 #include <cmath>
-#include <vector>
+#include <cstddef>
+#include <cstdio>
 #include <cstring>
 #include <iostream>
+#include <malloc/_malloc.h>
+#include <memory>
+#include <vector>
 
 #include "LendoMerge.h"
 
-LendoMerge::~LendoMerge() {}
+LendoMerge::~LendoMerge() {
+  if (map_x != nullptr)
+    destroy_image_f(map_x.get());
+  if (map_y != nullptr)
+    destroy_image_f(map_y.get());
+}
 
 void LendoMerge::findSeam(Image *img1, Image *img2, const char *mask1_filename,
                           const char *mask2_filename) {
@@ -63,8 +73,6 @@ void LendoMerge::findSeam(Image *img1, Image *img2, const char *mask1_filename,
   std::vector<int> path;
   path.push_back(index);
 
-
-
   for (int i = img1->height - 2; i >= 0; i--) {
     int a, b, c;
     c = b = a = 1 << 31;
@@ -87,7 +95,6 @@ void LendoMerge::findSeam(Image *img1, Image *img2, const char *mask1_filename,
   }
 
   dp.clear();
-
 
   for (int i = img1->height - 1; i >= 0; i--) {
     int a = path[i];
@@ -139,7 +146,8 @@ void LendoMerge::gamma_encode(ImageF *img, Image *out) {
   }
 }
 
-std::vector<double> LendoMerge::compute_alpha(ImageF *prev_img, ImageF *curr_img) {
+std::vector<double> LendoMerge::compute_alpha(ImageF *prev_img,
+                                              ImageF *curr_img) {
 
   int overlap_width = static_cast<int>(prev_img->width * IMAGE_CUT);
   int start_overlap_width = static_cast<int>(prev_img->width * (1 - IMAGE_CUT));
@@ -228,7 +236,242 @@ void LendoMerge::color_correct_sequence(const std::vector<Image *> &imgs) {
   }
 }
 
+void LendoMerge::compute_map(int width, int height, int channels) {
 
-void LendoMerge::bilinear_interpolate(Image *img){
+  if (map_x != nullptr)
+    destroy_image_f(map_x.get());
+  if (map_y != nullptr)
+    destroy_image_f(map_y.get());
 
+  map_x =
+      std::make_unique<ImageF>(create_empty_image_f(width, height, channels));
+  map_y =
+      std::make_unique<ImageF>(create_empty_image_f(width, height, channels));
+
+  simde__m256 eight = simde_mm256_set1_ps(8.0f);
+  simde__m256 one = simde_mm256_set1_ps(1.0f);
+  simde__m256 ws = simde_mm256_set1_ps((float)width);
+  simde__m256 hs = simde_mm256_set1_ps((float)height);
+
+  simde__m256 b =
+      simde_mm256_setr_ps(0.0f, 0.0f, 0.0f, 0.0, 0.0f, 0.0f, 0.0f, 0.0);
+
+  for (int y = 0; y < height; y++) {
+    simde__m256 a =
+        simde_mm256_setr_ps(0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f);
+
+    float *map_x_src = map_x->data + (y * width * channels);
+    float *map_y_src = map_y->data + (y * width * channels);
+    int x = 0;
+    for (; x < (width - 8); x += 8) {
+      simde_mm256_storeu_ps(map_x_src, a);
+      simde_mm256_storeu_ps(map_y_src, b);
+      a = simde_mm256_add_ps(a, eight);
+
+      map_x_src += 8;
+      map_y_src += 8;
+    }
+    for (; x < width; x++) {
+      map_x_src[0] = static_cast<float>(x);
+      map_y_src[0] = static_cast<float>(y);
+      ++map_x_src;
+      ++map_y_src;
+    }
+
+    b = simde_mm256_add_ps(b, one);
+  }
+
+
+  // x = (2 * x_indices - w) / w
+  // y = (2 * y_indices - h) / h
+  simde__m256 two = simde_mm256_set1_ps(2.0f);
+  for (int y = 0; y < height; y++) {
+    float *map_x_src = map_x->data + (y * width * channels);
+    float *map_y_src = map_y->data + (y * width * channels);
+    int x = 0;
+    for (; x < (width - 8); x += 8) {
+      simde__m256 vec_a = simde_mm256_loadu_ps(map_x_src);
+      simde__m256 vec_b = simde_mm256_loadu_ps(map_y_src);
+
+      vec_a = simde_mm256_mul_ps(vec_a, two);
+      vec_b = simde_mm256_mul_ps(vec_b, two);
+
+      vec_a = simde_mm256_sub_ps(vec_a, ws);
+      vec_a = simde_mm256_div_ps(vec_a, ws);
+
+      vec_b = simde_mm256_sub_ps(vec_b, hs);
+      vec_b = simde_mm256_div_ps(vec_b, hs);
+
+      simde_mm256_storeu_ps(map_x_src, vec_a);
+      simde_mm256_storeu_ps(map_y_src, vec_b);
+
+      map_x_src += 8;
+      map_y_src += 8;
+    }
+
+    for (; x < width ; x++) {
+        map_x_src[0] = (2.0f * map_x_src[0] - width) / static_cast<float>(width);
+      map_y_src[0] =
+          (2.0f * map_y_src[0] - height) / static_cast<float>(height);
+      ++map_x_src;
+      ++map_y_src;
+    }
+  }
+
+
+
+  // r = x**2 + y**2
+  ImageF r = create_empty_image_f(width, height, channels);
+  for (int y = 0; y < height; y++) {
+    float *map_x_src = map_x->data + (y * width * channels);
+    float *map_y_src = map_y->data + (y * width * channels);
+    float *r_src = r.data + (y * width * channels);
+    int x = 0;
+    for (; x < (width - 8); x += 8) {
+      simde__m256 vec_a = simde_mm256_loadu_ps(map_x_src);
+      simde__m256 vec_b = simde_mm256_loadu_ps(map_y_src);
+
+      simde_mm256_storeu_ps(
+          r_src, simde_mm256_add_ps(simde_mm256_mul_ps(vec_a, vec_a),
+                                    simde_mm256_mul_ps(vec_b, vec_b)));
+
+      map_x_src += 8;
+      map_y_src += 8;
+      r_src += 8;
+    }
+
+    // printf("%d %d \n", x , width);
+    for (; x < width; x++) {
+      r_src[0] = (map_x_src[0] * map_x_src[0]) + (map_y_src[0] * map_y_src[0]);
+      ++r_src;
+      ++map_x_src;
+      ++map_y_src;
+    }
+  }
+
+
+
+  // x_distorted = x * (1 + k * r)
+  // y_distorted = y * (1 + k * r)
+
+  simde__m256 k = simde_mm256_set1_ps(K);
+
+  for (int y = 0; y < height; y++) {
+    float *map_x_src = map_x->data + (y * width * channels);
+    float *map_y_src = map_y->data + (y * width * channels);
+    float *r_src = r.data + (y * width * channels);
+    int x = 0;
+    for (; x < (width - 8); x += 8) {
+      simde__m256 vec_a = simde_mm256_loadu_ps(map_x_src);
+      simde__m256 vec_b = simde_mm256_loadu_ps(map_y_src);
+      simde__m256 vec_r = simde_mm256_loadu_ps(r_src);
+
+      simde__m256 rk = simde_mm256_add_ps(simde_mm256_mul_ps(k, vec_r), one);
+
+      simde_mm256_storeu_ps(map_x_src, simde_mm256_mul_ps(vec_a, rk));
+      simde_mm256_storeu_ps(map_y_src, simde_mm256_mul_ps(vec_b, rk));
+
+      map_x_src += 8;
+      map_y_src += 8;
+      r_src += 8;
+    }
+
+    for (; x < width; x++) {
+      map_x_src[0] = map_x_src[0] * (1 + (K * r_src[0]));
+      map_y_src[0] = map_y_src[0] * (1 + (K * r_src[0]));
+      ++r_src;
+      ++map_x_src;
+      ++map_y_src;
+    }
+  }
+
+
+  destroy_image_f(&r);
+
+  // map_x = ((x_distorted + 1) * w) / 2
+  // map_y = ((y_distorted + 1) * h) / 2
+
+  for (int y = 0; y < height; y++) {
+    float *map_x_src = map_x->data + (y * width * channels);
+    float *map_y_src = map_y->data + (y * width * channels);
+    int x = 0;
+    for (; x < (width - 8); x += 8) {
+      simde__m256 vec_a = simde_mm256_loadu_ps(map_x_src);
+      simde__m256 vec_b = simde_mm256_loadu_ps(map_y_src);
+
+      simde_mm256_storeu_ps(
+          map_x_src,
+          simde_mm256_div_ps(
+              simde_mm256_mul_ps(simde_mm256_add_ps(vec_a, one), ws), two));
+      simde_mm256_storeu_ps(
+          map_y_src,
+          simde_mm256_div_ps(
+              simde_mm256_mul_ps(simde_mm256_add_ps(vec_b, one), hs), two));
+
+      map_x_src += 8;
+      map_y_src += 8;
+    }
+
+    for (; x < width; x++) {
+      map_x_src[0] = ((map_x_src[0] + 1) * width) / 2.0f;
+      map_y_src[0] = ((map_y_src[0] + 1) * height) / 2.0f;
+      ++map_x_src;
+      ++map_y_src;
+    }
+  }
+
+}
+
+
+void LendoMerge::bilinear_interpolate(Image *img) {
+  assert(img->channels == RGB_CHANNELS);
+
+  if (map_x == nullptr || map_y == nullptr) {
+    compute_map(img->width, img->height, GRAY_CHANNELS);
+  }
+
+  Image out = create_empty_image(img->width, img->height, img->channels);
+  const int W = img->width;
+  const int H = img->height;
+  const int C = img->channels;
+
+  for (int y = 0; y < H; y++) {
+    for (int x = 0; x < W; x++) {
+      int map_pos = y * W + x;
+      float i = map_x->data[map_pos];
+      float j = map_y->data[map_pos];
+
+      if (i < 0.0f || i >= W - 1 || j < 0.0f || j >= H - 1)
+        continue;
+
+      int x0 = static_cast<int>(std::floor(i));
+      int y0 = static_cast<int>(std::floor(j));
+      float dx = i - x0;
+      float dy = j - y0;
+
+      for (int c = 0; c < C; c++) {
+        int base11 = ((y0    ) * W + (x0    )) * C + c;
+        int base21 = ((y0    ) * W + (x0 + 1)) * C + c;
+        int base12 = ((y0 + 1) * W + (x0    )) * C + c;
+        int base22 = ((y0 + 1) * W + (x0 + 1)) * C + c;
+
+        float Q11 = img->data[base11];
+        float Q21 = img->data[base21];
+        float Q12 = img->data[base12];
+        float Q22 = img->data[base22];
+
+        float pixel =
+            Q11 * (1 - dx) * (1 - dy) +
+            Q21 * (    dx) * (1 - dy) +
+            Q12 * (1 - dx) * (    dy) +
+            Q22 * (    dx) * (    dy);
+
+        int out_idx = map_pos * C + c;
+        out.data[out_idx] = clamp(static_cast<int>(std::round(pixel)), 0, 255);
+      }
+    }
+  }
+
+  destroy_image(img);
+  img->data = out.data;
 }
