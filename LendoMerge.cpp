@@ -20,7 +20,7 @@ LendoMerge::~LendoMerge() {
     destroy_image_f(map_y.get());
 }
 
-void LendoMerge::findSeam(Image *img1, Image *img2, const char *mask1_filename,
+bool LendoMerge::findSeam(Image *img1, Image *img2, const char *mask1_filename,
                           const char *mask2_filename) {
 
   assert(img1->width == img2->width && img1->height == img2->height);
@@ -114,11 +114,15 @@ void LendoMerge::findSeam(Image *img1, Image *img2, const char *mask1_filename,
     std::memset(mask2.data + m, 255, e - m);
   }
 
-  compress_grayscale_jpeg(mask1_filename, &mask1, 50);
-  compress_grayscale_jpeg(mask2_filename, &mask2, 50);
+  if (!compress_grayscale_jpeg(mask1_filename, &mask1, 100))
+    return false;
+  if (!compress_grayscale_jpeg(mask2_filename, &mask2, 100))
+    return false;
 
   destroy_image(&mask1);
   destroy_image(&mask2);
+
+  return true;
 }
 
 void LendoMerge::linearize(Image *img, ImageF *out) {
@@ -281,7 +285,6 @@ void LendoMerge::compute_map(int width, int height, int channels) {
     b = simde_mm256_add_ps(b, one);
   }
 
-
   // x = (2 * x_indices - w) / w
   // y = (2 * y_indices - h) / h
   simde__m256 two = simde_mm256_set1_ps(2.0f);
@@ -309,16 +312,14 @@ void LendoMerge::compute_map(int width, int height, int channels) {
       map_y_src += 8;
     }
 
-    for (; x < width ; x++) {
-        map_x_src[0] = (2.0f * map_x_src[0] - width) / static_cast<float>(width);
+    for (; x < width; x++) {
+      map_x_src[0] = (2.0f * map_x_src[0] - width) / static_cast<float>(width);
       map_y_src[0] =
           (2.0f * map_y_src[0] - height) / static_cast<float>(height);
       ++map_x_src;
       ++map_y_src;
     }
   }
-
-
 
   // r = x**2 + y**2
   ImageF r = create_empty_image_f(width, height, channels);
@@ -340,7 +341,6 @@ void LendoMerge::compute_map(int width, int height, int channels) {
       r_src += 8;
     }
 
-    // printf("%d %d \n", x , width);
     for (; x < width; x++) {
       r_src[0] = (map_x_src[0] * map_x_src[0]) + (map_y_src[0] * map_y_src[0]);
       ++r_src;
@@ -349,13 +349,9 @@ void LendoMerge::compute_map(int width, int height, int channels) {
     }
   }
 
-
-
   // x_distorted = x * (1 + k * r)
   // y_distorted = y * (1 + k * r)
-
   simde__m256 k = simde_mm256_set1_ps(K);
-
   for (int y = 0; y < height; y++) {
     float *map_x_src = map_x->data + (y * width * channels);
     float *map_y_src = map_y->data + (y * width * channels);
@@ -384,7 +380,6 @@ void LendoMerge::compute_map(int width, int height, int channels) {
       ++map_y_src;
     }
   }
-
 
   destroy_image_f(&r);
 
@@ -419,9 +414,7 @@ void LendoMerge::compute_map(int width, int height, int channels) {
       ++map_y_src;
     }
   }
-
 }
-
 
 void LendoMerge::bilinear_interpolate(Image *img) {
   assert(img->channels == RGB_CHANNELS);
@@ -450,9 +443,9 @@ void LendoMerge::bilinear_interpolate(Image *img) {
       float dy = j - y0;
 
       for (int c = 0; c < C; c++) {
-        int base11 = ((y0    ) * W + (x0    )) * C + c;
-        int base21 = ((y0    ) * W + (x0 + 1)) * C + c;
-        int base12 = ((y0 + 1) * W + (x0    )) * C + c;
+        int base11 = ((y0)*W + (x0)) * C + c;
+        int base21 = ((y0)*W + (x0 + 1)) * C + c;
+        int base12 = ((y0 + 1) * W + (x0)) * C + c;
         int base22 = ((y0 + 1) * W + (x0 + 1)) * C + c;
 
         float Q11 = img->data[base11];
@@ -460,11 +453,8 @@ void LendoMerge::bilinear_interpolate(Image *img) {
         float Q12 = img->data[base12];
         float Q22 = img->data[base22];
 
-        float pixel =
-            Q11 * (1 - dx) * (1 - dy) +
-            Q21 * (    dx) * (1 - dy) +
-            Q12 * (1 - dx) * (    dy) +
-            Q22 * (    dx) * (    dy);
+        float pixel = Q11 * (1 - dx) * (1 - dy) + Q21 * (dx) * (1 - dy) +
+                      Q12 * (1 - dx) * (dy) + Q22 * (dx) * (dy);
 
         int out_idx = map_pos * C + c;
         out.data[out_idx] = clamp(static_cast<int>(std::round(pixel)), 0, 255);
@@ -474,4 +464,37 @@ void LendoMerge::bilinear_interpolate(Image *img) {
 
   destroy_image(img);
   img->data = out.data;
+}
+
+bool LendoMerge::merge_two(Image *img1, Image *img2, const char *mask1_filename,
+                           const char *mask2_filename,
+                           const char *merged_filename) {
+
+  if (!findSeam(img1, img2, mask1_filename, mask2_filename))
+    return false;
+  Rect out_size = {0, 0,
+                   img1->width + img2->width -
+                       static_cast<int>((img1->width * IMAGE_CUT)),
+                   img1->height};
+
+  Image mask1 = create_image(mask1_filename);
+  Image mask2 = create_image(mask2_filename);
+
+  printf("%d %d \n", mask1.width, mask1.height);
+
+  Blender *b = create_blender(MULTIBAND, out_size, 3);
+
+  feed(b, img1, &mask1, Point{0, 0});
+  feed(b, img2, &mask2, Point{static_cast<int>((img1->width * IMAGE_CUT)), 0});
+
+  blend(b);
+
+  if (b->result.data != NULL) {
+    bilinear_interpolate(&b->result);
+    if (!save_image(&b->result, merged_filename))
+      return false;
+    return true;
+  }
+
+  return false;
 }

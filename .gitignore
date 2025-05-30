@@ -6,3 +6,6 @@ build
 lendomerge
 libs/*/*
 files/*
+*.jpg
+*.png
+*.jpeg

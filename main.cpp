@@ -18,27 +18,18 @@ int main() {
     destroy_image(&img1);
     destroy_image(&img2);
 
-    img1 = down1,img2 = down2;
+    img1 = down1, img2 = down2;
   }
 
-  // std::vector<Image *> imgs = {&down1, &down2};
-  // lendoMerge.findSeam(&down1, &down2, "mask1.jpg", "mask2.jpg");
-  // lendoMerge.color_correct_sequence(imgs);
-
-  // char buf[100];
-  // for (int i = 0; i < imgs.size(); i++) {
-  //     std::snprintf(buf,sizeof(buf),"ab%d.jpg",i);
-  //     save_image(imgs[i], buf);
-  // }
-
-  lendoMerge.bilinear_interpolate(&down1);
-  save_image(&down1, "bilinear_interpolate.jpg");
+  lendoMerge.merge_two(&down1, &down2, "mask1.jpg", "mask2.jpg", "Result.jpg");
   destroy_image(&down1);
   destroy_image(&down2);
 
   return 0;
 }
 
-// g++-14  -Iheader-files/stitcher  -I./ -L/Users/abrahamakerele/p-h/lendostuff/stitcher/installs/native-stitcher/macos/x86_64/lib -lNativeSticher  -o lendomerge LendoMerge.cpp main.cpp
-// export DYLD_LIBRARY_PATH=/Users/abrahamakerele/p-h/lendostuff/stitcher/installs/native-stitcher/macos/x86_64/lib
+// g++-14  -Iheader-files/stitcher  -I./
+// -L/Users/abrahamakerele/p-h/lendostuff/stitcher/installs/native-stitcher/macos/x86_64/lib
+// -lNativeSticher  -o lendomerge LendoMerge.cpp main.cpp export
+// DYLD_LIBRARY_PATH=/Users/abrahamakerele/p-h/lendostuff/stitcher/installs/native-stitcher/macos/x86_64/lib
 // ./lendomerge

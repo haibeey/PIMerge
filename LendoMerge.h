@@ -23,8 +23,10 @@ private:
 public:
   LendoMerge(float FOV) : FOV(FOV) { beta = CAMROT - (FOV / 2); };
   ~LendoMerge();
-  void findSeam(Image *img1, Image *img2, const char *mask1_filename,
+  bool findSeam(Image *img1, Image *img2, const char *mask1_filename,
                 const char *mask2_filename);
+  bool merge_two(Image *img1, Image *img2, const char *mask1_filename,
+             const char *mask2_filename, const char *merged_filename);
   void color_correct_sequence(const std::vector<Image *> &imgs);
   void bilinear_interpolate(Image *img);
 };
