@@ -20,12 +20,10 @@ LendoMerge::~LendoMerge() {
     destroy_image_f(map_y.get());
 }
 
-bool LendoMerge::findSeam(Image *img1, Image *img2, const char *mask1_filename,
-                          const char *mask2_filename) {
+bool LendoMerge::findSeam(Image *img1, Image *img2, Image *mask1,
+                          Image *mask2) {
 
   assert(img1->width == img2->width && img1->height == img2->height);
-  Image mask1 = convert_RGB_to_gray(img1);
-  Image mask2 = convert_RGB_to_gray(img2);
 
   int err_width = static_cast<int>(img1->width * IMAGE_CUT);
   int start = static_cast<int>(img1->width * (1 - IMAGE_CUT));
@@ -103,24 +101,16 @@ bool LendoMerge::findSeam(Image *img1, Image *img2, const char *mask1_filename,
     int m = (i * img1->width) + start + a;
     int e = (i * img1->width) + img1->width;
 
-    std::memset(mask1.data + (i * img1->width), 255, start);
-    std::memset(mask1.data + s, 255, m - s);
-    std::memset(mask1.data + m, 0, e - m);
+    std::memset(mask1->data + (i * img1->width), 255, start);
+    std::memset(mask1->data + s, 255, m - s);
+    std::memset(mask1->data + m, 0, e - m);
 
     s = (i * img1->width);
     m = (i * img1->width) + a;
 
-    std::memset(mask2.data + s, 0, m - s);
-    std::memset(mask2.data + m, 255, e - m);
+    std::memset(mask2->data + s, 0, m - s);
+    std::memset(mask2->data + m, 255, e - m);
   }
-
-  if (!compress_grayscale_jpeg(mask1_filename, &mask1, 100))
-    return false;
-  if (!compress_grayscale_jpeg(mask2_filename, &mask2, 100))
-    return false;
-
-  destroy_image(&mask1);
-  destroy_image(&mask2);
 
   return true;
 }
@@ -417,6 +407,7 @@ void LendoMerge::compute_map(int width, int height, int channels) {
 }
 
 void LendoMerge::bilinear_interpolate(Image *img) {
+
   assert(img->channels == RGB_CHANNELS);
 
   if (map_x == nullptr || map_y == nullptr) {
@@ -466,35 +457,42 @@ void LendoMerge::bilinear_interpolate(Image *img) {
   img->data = out.data;
 }
 
-bool LendoMerge::merge_two(Image *img1, Image *img2, const char *mask1_filename,
-                           const char *mask2_filename,
+bool LendoMerge::merge_two(Image *img1, Image *img2,
                            const char *merged_filename) {
 
-  if (!findSeam(img1, img2, mask1_filename, mask2_filename))
+  bool result = false;
+  Image mask1 = convert_RGB_to_gray(img1);
+  Image mask2 = convert_RGB_to_gray(img2);
+  if (!findSeam(img1, img2, &mask1, &mask2))
     return false;
-  Rect out_size = {0, 0,
-                   img1->width + img2->width -
-                       static_cast<int>((img1->width * IMAGE_CUT)),
-                   img1->height};
-
-  Image mask1 = create_image(mask1_filename);
-  Image mask2 = create_image(mask2_filename);
+  Rect out_size = {
+      0, 0, (img1->width * 2) - static_cast<int>((img1->width * IMAGE_CUT)),
+      img1->height};
 
   printf("%d %d \n", mask1.width, mask1.height);
 
-  Blender *b = create_blender(MULTIBAND, out_size, 3);
+  Blender *b = create_blender(MULTIBAND, out_size, 5);
 
   feed(b, img1, &mask1, Point{0, 0});
-  feed(b, img2, &mask2, Point{static_cast<int>((img1->width * IMAGE_CUT)), 0});
-
+  feed(b, img2, &mask2,
+       Point{img1->width - ( 2 * static_cast<int>(img1->width * IMAGE_CUT)), 0});
   blend(b);
+
+  destroy_image(&mask1);
+  destroy_image(&mask2);
 
   if (b->result.data != NULL) {
     bilinear_interpolate(&b->result);
-    if (!save_image(&b->result, merged_filename))
-      return false;
-    return true;
+    if (!save_image(&b->result, merged_filename)) {
+      result = false;
+      goto clean;
+    }
+    result = true;
+    goto clean;
   }
 
-  return false;
+clean:
+  destroy_blender(b);
+
+  return result;
 }

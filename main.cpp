@@ -7,8 +7,8 @@
 int main() {
   LendoMerge lendoMerge(104);
 
-  Image img1 = create_image("files/1.jpg");
-  Image img2 = create_image("files/2.jpg");
+  Image img1 = create_image("files/2.jpg");
+  Image img2 = create_image("files/3.jpg");
 
   Image down1, down2;
   for (int i = 0; i < 3; i++) {
@@ -21,7 +21,7 @@ int main() {
     img1 = down1, img2 = down2;
   }
 
-  lendoMerge.merge_two(&down1, &down2, "mask1.jpg", "mask2.jpg", "Result.jpg");
+  lendoMerge.merge_two(&down1, &down2, "result.jpg");
   destroy_image(&down1);
   destroy_image(&down2);
 

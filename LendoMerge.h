@@ -2,7 +2,7 @@
 #define CAMROT 60
 #define IMAGE_CUT 0.2739361702
 #define GAMMA 2.2
-#define K 0.8f
+#define K 0.5f
 
 #include "blending.h"
 #include "jpeg.h"
@@ -23,10 +23,8 @@ private:
 public:
   LendoMerge(float FOV) : FOV(FOV) { beta = CAMROT - (FOV / 2); };
   ~LendoMerge();
-  bool findSeam(Image *img1, Image *img2, const char *mask1_filename,
-                const char *mask2_filename);
-  bool merge_two(Image *img1, Image *img2, const char *mask1_filename,
-             const char *mask2_filename, const char *merged_filename);
+  bool findSeam(Image *img1, Image *img2, Image *mask1, Image *mask2);
+  bool merge_two(Image *img1, Image *img2,const char *merged_filename);
   void color_correct_sequence(const std::vector<Image *> &imgs);
   void bilinear_interpolate(Image *img);
 };
