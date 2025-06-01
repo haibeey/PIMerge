@@ -9,6 +9,7 @@
 #include <iostream>
 #include <malloc/_malloc.h>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "LendoMerge.h"
@@ -26,6 +27,7 @@ bool LendoMerge::findSeam(Image *img1, Image *img2, Image *mask1,
   assert(img1->width == img2->width && img1->height == img2->height);
 
   int err_width = static_cast<int>(img1->width * IMAGE_CUT);
+  gap = max(gap, err_width);
   int start = static_cast<int>(img1->width * (1 - IMAGE_CUT));
 
   std::vector<std::vector<short>> E(img1->height,
@@ -465,24 +467,32 @@ bool LendoMerge::merge_two(Image *img1, Image *img2,
   Image mask2 = convert_RGB_to_gray(img2);
   if (!findSeam(img1, img2, &mask1, &mask2))
     return false;
-  Rect out_size = {
-      0, 0, (img1->width * 2) - static_cast<int>((img1->width * IMAGE_CUT)),
-      img1->height};
 
-  printf("%d %d \n", mask1.width, mask1.height);
+  int bands = 5;
+
+  int out_width = (img1->width * 2) - static_cast<int>(img1->width * IMAGE_CUT);
+
+  Rect out_size = {0, 0, out_width, img1->height};
 
   Blender *b = create_blender(MULTIBAND, out_size, 5);
 
   feed(b, img1, &mask1, Point{0, 0});
   feed(b, img2, &mask2,
-       Point{img1->width - ( 2 * static_cast<int>(img1->width * IMAGE_CUT)), 0});
+       Point{img1->width - (2 * static_cast<int>(img1->width * IMAGE_CUT)), 0});
   blend(b);
 
   destroy_image(&mask1);
   destroy_image(&mask2);
 
   if (b->result.data != NULL) {
-    bilinear_interpolate(&b->result);
+    int right_cut = 0;
+    for (int i = (b->result.width * RGB_CHANNELS) - 1; i > 100; i--) {
+      if (b->result.data[i] > 0) {
+        right_cut = b->result.width - (i / RGB_CHANNELS);
+        break;
+      }
+    }
+    crop_image(&b->result, 0, 0, 0, right_cut);
     if (!save_image(&b->result, merged_filename)) {
       result = false;
       goto clean;
@@ -493,6 +503,63 @@ bool LendoMerge::merge_two(Image *img1, Image *img2,
 
 clean:
   destroy_blender(b);
+  return result;
+}
 
+std::string LendoMerge::merge(std::vector<std::string> imgs_path,
+                              int img_width) {
+  // img_width holds the with of each image , assuming all images have the same
+  // size assert(imgs_path.size() % 6 == 0);
+  std::string result = "merge.jpg";
+  int total_width = 0;
+  int max_height = 0;
+
+  for (std::string image_path : imgs_path) {
+    Image img = (create_image(image_path.c_str()));
+    total_width += img.width - (img_width / 2);
+    max_height = max(max_height, img.height);
+    destroy_image(&img);
+  }
+
+  Rect out_size = {0, 0, total_width, max_height};
+
+  Blender *b = create_blender(FEATHER, out_size, -1);
+
+  int x = 0;
+  int x_point = 0;
+  int l = 0, r = 1;
+  for (std::string image_path : imgs_path) {
+    Image img = (create_image(image_path.c_str()));
+    float cut = static_cast<float>(img_width) / 2.0f;
+    Image mask;
+
+    if (x > 0) {
+      l = 1, r = 0;
+    }
+
+    mask = create_image_mask(img.width, img.height,
+                             cut / static_cast<float>(img.width), l, r);
+
+    feed(b, &img, &mask, Point{x_point, 0});
+
+    x_point += img.width - img_width;
+
+    destroy_image(&img);
+    destroy_image(&mask);
+    x++;
+  }
+
+  blend(b);
+  if (b->result.data != NULL) {
+    if (!save_image(&b->result, result.c_str())) {
+      result = false;
+      goto clean;
+    }
+    result = true;
+    goto clean;
+  }
+
+clean:
+  destroy_blender(b);
   return result;
 }

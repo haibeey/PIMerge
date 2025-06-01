@@ -21,7 +21,10 @@ int main() {
     img1 = down1, img2 = down2;
   }
 
-  lendoMerge.merge_two(&down1, &down2, "result.jpg");
+  // lendoMerge.merge_two(&down1, &down2, "result2.jpg");
+  lendoMerge.merge(std::vector<std::string>{"result1.jpg", "result2.jpg"},
+                   down1.width);
+
   destroy_image(&down1);
   destroy_image(&down2);
 
@@ -30,6 +33,6 @@ int main() {
 
 // g++-14  -Iheader-files/stitcher  -I./
 // -L/Users/abrahamakerele/p-h/lendostuff/stitcher/installs/native-stitcher/macos/x86_64/lib
-// -lNativeSticher  -o lendomerge LendoMerge.cpp main.cpp export
+// -lNativeStitcher  -o lendomerge LendoMerge.cpp main.cpp export
 // DYLD_LIBRARY_PATH=/Users/abrahamakerele/p-h/lendostuff/stitcher/installs/native-stitcher/macos/x86_64/lib
 // ./lendomerge
