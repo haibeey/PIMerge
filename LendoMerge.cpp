@@ -472,13 +472,13 @@ bool LendoMerge::merge_two(Image *img1, Image *img2,
 
   int out_width = (img1->width * 2) - static_cast<int>(img1->width * IMAGE_CUT);
 
-  Rect out_size = {0, 0, out_width, img1->height};
+  StitchRect out_size = {0, 0, out_width, img1->height};
 
   Blender *b = create_blender(MULTIBAND, out_size, 5);
 
-  feed(b, img1, &mask1, Point{0, 0});
+  feed(b, img1, &mask1, StitchPoint{0, 0});
   feed(b, img2, &mask2,
-       Point{img1->width - (2 * static_cast<int>(img1->width * IMAGE_CUT)), 0});
+       StitchPoint{img1->width - (2 * static_cast<int>(img1->width * IMAGE_CUT)), 0});
   blend(b);
 
   destroy_image(&mask1);
@@ -521,7 +521,7 @@ std::string LendoMerge::merge(std::vector<std::string> imgs_path,
     destroy_image(&img);
   }
 
-  Rect out_size = {0, 0, total_width, max_height};
+  StitchRect out_size = {0, 0, total_width, max_height};
 
   Blender *b = create_blender(FEATHER, out_size, -1);
 
@@ -540,7 +540,7 @@ std::string LendoMerge::merge(std::vector<std::string> imgs_path,
     mask = create_image_mask(img.width, img.height,
                              cut / static_cast<float>(img.width), l, r);
 
-    feed(b, &img, &mask, Point{x_point, 0});
+    feed(b, &img, &mask, StitchPoint{x_point, 0});
 
     x_point += img.width - img_width;
 

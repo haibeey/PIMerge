@@ -1,3 +1,4 @@
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -13,8 +14,8 @@ typedef enum{
 typedef struct
 {
     int num_bands;
-    Rect output_size;
-    Rect real_out_size;
+    StitchRect output_size;
+    StitchRect real_out_size;
     int *out_width_levels;
     int *out_height_levels;
     ImageF *out;
@@ -25,10 +26,11 @@ typedef struct
     ImageS *mask_gaussian;
     BlenderType blender_type;
     float sharpness;
+    int do_distance_transform;
 } Blender;
 
-Blender *create_blender(BlenderType blender_type, Rect out_size, int nb);
-int feed(Blender *b, Image *img, Image *maskImg, Point tl);
+Blender *create_blender(BlenderType blender_type, StitchRect out_size, int nb);
+int feed(Blender *b, Image *img, Image *maskImg, StitchPoint tl);
 void blend(Blender *b);
 void destroy_blender(Blender *blender);
 
