@@ -7,21 +7,13 @@
 int main() {
   LendoMerge lendoMerge(104);
 
-  Image img1 = create_image("files/2.jpg");
-  Image img2 = create_image("files/3.jpg");
+  lendoMerge.downsample_image("files/1.jpg", "down1.jpg");
+  lendoMerge.downsample_image("files/2.jpg", "down2.jpg");
 
-  Image down1, down2;
-  for (int i = 0; i < 3; i++) {
-    down1 = downsample(&img1);
-    down2 = downsample(&img2);
+  lendoMerge.merge_two_by_image_path("down1.jpg", "down2.jpg", "out.jpg");
+  Image down1 = create_image("down1.jpg");
+  Image down2 = create_image("down2.jpg");
 
-    destroy_image(&img1);
-    destroy_image(&img2);
-
-    img1 = down1, img2 = down2;
-  }
-
-  // lendoMerge.merge_two(&down1, &down2, "result2.jpg");
   lendoMerge.merge(std::vector<std::string>{"result1.jpg", "result2.jpg"},
                    down1.width);
 

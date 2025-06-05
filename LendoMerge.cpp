@@ -478,7 +478,8 @@ bool LendoMerge::merge_two(Image *img1, Image *img2,
 
   feed(b, img1, &mask1, StitchPoint{0, 0});
   feed(b, img2, &mask2,
-       StitchPoint{img1->width - (2 * static_cast<int>(img1->width * IMAGE_CUT)), 0});
+       StitchPoint{
+           img1->width - (2 * static_cast<int>(img1->width * IMAGE_CUT)), 0});
   blend(b);
 
   destroy_image(&mask1);
@@ -561,5 +562,34 @@ std::string LendoMerge::merge(std::vector<std::string> imgs_path,
 
 clean:
   destroy_blender(b);
+  return result;
+}
+
+void LendoMerge::downsample_image(std::string image_path,
+                                  std::string out_image_path) {
+  Image img = create_image(image_path.c_str());
+  Image down;
+  int x = 3;
+  while (img.width > 300 && x > 0) {
+    down = downsample(&img);
+    destroy_image(&img);
+    img = down;
+    x--;
+  }
+  save_image(&img, out_image_path.c_str());
+  destroy_image(&img);
+}
+
+bool LendoMerge::merge_two_by_image_path(std::string image_path_1,
+                                         std::string image_path_2,
+                                         std::string out_filename) {
+  Image img1 = create_image(image_path_1.c_str());
+  Image img2 = create_image(image_path_2.c_str());
+
+  bool result = merge_two(&img1, &img2, out_filename.c_str());
+
+  destroy_image(&img1);
+  destroy_image(&img2);
+
   return result;
 }
