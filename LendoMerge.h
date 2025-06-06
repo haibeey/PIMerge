@@ -32,7 +32,7 @@ public:
 
   };
   ~LendoMerge();
-  std::string merge(std::vector<std::string>, int img_width);
+  std::string merge(std::vector<std::string>, int img_width,std::string result);
   void downsample_image(std::string image_path,std::string out_image_path);
   bool merge_two_by_image_path(std::string image_path_1,
                                std::string image_path_2,

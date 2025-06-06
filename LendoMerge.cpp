@@ -68,7 +68,7 @@ bool LendoMerge::findSeam(Image *img1, Image *img2, Image *mask1,
 
   auto min_element =
       std::min_element(dp[err_width - 1].begin(), dp[err_width - 1].end());
-  int index = std::distance(dp[err_width - 1].begin(), min_element);
+  int index = static_cast<int>(std::distance(dp[err_width - 1].begin(), min_element));
 
   std::vector<int> path;
   path.push_back(index);
@@ -474,7 +474,7 @@ bool LendoMerge::merge_two(Image *img1, Image *img2,
 
   StitchRect out_size = {0, 0, out_width, img1->height};
 
-  Blender *b = create_blender(MULTIBAND, out_size, 5);
+  Blender *b = create_blender(MULTIBAND, out_size, bands);
 
   feed(b, img1, &mask1, StitchPoint{0, 0});
   feed(b, img2, &mask2,
@@ -508,10 +508,9 @@ clean:
 }
 
 std::string LendoMerge::merge(std::vector<std::string> imgs_path,
-                              int img_width) {
+                              int img_width,std::string result) {
   // img_width holds the with of each image , assuming all images have the same
   // size assert(imgs_path.size() % 6 == 0);
-  std::string result = "merge.jpg";
   int total_width = 0;
   int max_height = 0;
 
@@ -535,7 +534,8 @@ std::string LendoMerge::merge(std::vector<std::string> imgs_path,
     Image mask;
 
     if (x > 0) {
-      l = 1, r = 0;
+      l = 1;
+      r = 0;
     }
 
     mask = create_image_mask(img.width, img.height,
@@ -585,6 +585,8 @@ bool LendoMerge::merge_two_by_image_path(std::string image_path_1,
                                          std::string out_filename) {
   Image img1 = create_image(image_path_1.c_str());
   Image img2 = create_image(image_path_2.c_str());
+
+  color_correct_sequence(std::vector<Image*>{ &img1, &img2 });
 
   bool result = merge_two(&img1, &img2, out_filename.c_str());
 

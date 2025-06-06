@@ -15,7 +15,7 @@ int main() {
   Image down2 = create_image("down2.jpg");
 
   lendoMerge.merge(std::vector<std::string>{"result1.jpg", "result2.jpg"},
-                   down1.width);
+                   down1.width,"merged.jpg");
 
   destroy_image(&down1);
   destroy_image(&down2);
