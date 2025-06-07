@@ -9,6 +9,7 @@
 #include <iostream>
 #include <malloc/_malloc.h>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -27,7 +28,6 @@ bool LendoMerge::findSeam(Image *img1, Image *img2, Image *mask1,
   assert(img1->width == img2->width && img1->height == img2->height);
 
   int err_width = static_cast<int>(img1->width * IMAGE_CUT);
-  gap = max(gap, err_width);
   int start = static_cast<int>(img1->width * (1 - IMAGE_CUT));
 
   std::vector<std::vector<short>> E(img1->height,
@@ -66,9 +66,10 @@ bool LendoMerge::findSeam(Image *img1, Image *img2, Image *mask1,
 
   E.clear();
 
-  auto min_element =
-      std::min_element(dp[err_width - 1].begin(), dp[err_width - 1].end());
-  int index = static_cast<int>(std::distance(dp[err_width - 1].begin(), min_element));
+  auto min_element = std::min_element(dp[img1->height - 1].begin(),
+                                      dp[img1->height - 1].end());
+  int index = static_cast<int>(
+      std::distance(dp[img1->height - 1].begin(), min_element));
 
   std::vector<int> path;
   path.push_back(index);
@@ -103,7 +104,6 @@ bool LendoMerge::findSeam(Image *img1, Image *img2, Image *mask1,
     int m = (i * img1->width) + start + a;
     int e = (i * img1->width) + img1->width;
 
-    std::memset(mask1->data + (i * img1->width), 255, start);
     std::memset(mask1->data + s, 255, m - s);
     std::memset(mask1->data + m, 0, e - m);
 
@@ -194,7 +194,6 @@ LendoMerge::compute_global_adjustment(std::vector<std::vector<double>> alphas) {
 }
 
 void LendoMerge::color_correct_sequence(const std::vector<Image *> &imgs) {
-
   std::vector<ImageF> linearize_images;
   for (int i = 0; i < imgs.size(); i++) {
     linearize_images.push_back(create_empty_image_f(
@@ -204,30 +203,29 @@ void LendoMerge::color_correct_sequence(const std::vector<Image *> &imgs) {
 
   std::vector<std::vector<double>> alphas;
   alphas.push_back({1.0, 1.0, 1.0});
-
-  for (int i = 1; i < imgs.size(); i++) {
+  for (int i = 1; i < imgs.size(); i++)
     alphas.push_back(
         compute_alpha(&linearize_images[i - 1], &linearize_images[i]));
-  }
 
   std::vector<double> g = compute_global_adjustment(alphas);
 
+  const double brightness = 1.8;
+
   for (int i = 0; i < imgs.size(); i++) {
-    std::vector<double> combined;
-    for (int j = 0; j < 3; j++) {
-      combined.push_back(std::pow((g[j] * alphas[i][j]), (1.0 / GAMMA)));
+    std::vector<double> combined(3);
+    for (int c = 0; c < 3; c++) {
+      double gain = g[c] * alphas[i][c];
+      combined[c] = std::pow(gain, 1.0 / GAMMA) * brightness;
     }
 
-    for (int k = 0; k < (imgs[0]->width * imgs[0]->height * imgs[0]->channels);
-         k++) {
-      linearize_images[i].data[k] =
-          linearize_images[i].data[k] * combined[k % 3];
+    const int total = imgs[i]->width * imgs[i]->height * imgs[i]->channels;
+    for (int k = 0; k < total; k++) {
+      linearize_images[i].data[k] *= combined[k % 3];
     }
-
     gamma_encode(&linearize_images[i], imgs[i]);
   }
 
-  for (ImageF imgf : linearize_images) {
+  for (auto &imgf : linearize_images) {
     destroy_image_f(&imgf);
   }
 }
@@ -507,8 +505,8 @@ clean:
   return result;
 }
 
-std::string LendoMerge::merge(std::vector<std::string> imgs_path,
-                              int img_width,std::string result) {
+std::string LendoMerge::merge(std::vector<std::string> imgs_path, int img_width,
+                              std::string result) {
   // img_width holds the with of each image , assuming all images have the same
   // size assert(imgs_path.size() % 6 == 0);
   int total_width = 0;
@@ -586,12 +584,112 @@ bool LendoMerge::merge_two_by_image_path(std::string image_path_1,
   Image img1 = create_image(image_path_1.c_str());
   Image img2 = create_image(image_path_2.c_str());
 
-  color_correct_sequence(std::vector<Image*>{ &img1, &img2 });
+  color_correct_sequence(std::vector<Image *>{&img1, &img2});
 
   bool result = merge_two(&img1, &img2, out_filename.c_str());
 
   destroy_image(&img1);
   destroy_image(&img2);
+
+  return result;
+}
+
+bool LendoMerge::merge_six(std::vector<Image *> imgs,
+                           const char *merged_filename) {
+
+  assert(imgs.size() > 0 && imgs.size() % 6 == 0);
+  color_correct_sequence(imgs);
+  bool result = false;
+  int bands = 5;
+  int out_width = 0;
+  std::vector<Image> masks(imgs.size());
+  std::vector<int> x_points(imgs.size());
+  for (int i = 0; i < imgs.size(); i++) {
+    masks[i].width = -1;
+  }
+  x_points[0] = 0;
+  Blender *b = nullptr;
+  StitchRect out_size;
+
+  int gap = (1 << bands);
+
+  for (int i = 0; i < imgs.size() - 1; i++) {
+    Image mask1 = convert_RGB_to_gray(imgs[i]);
+    std::memset(mask1.data, 255, mask1.channels * mask1.width * mask1.height);
+    Image mask2 = convert_RGB_to_gray(imgs[i + 1]);
+    std::memset(mask2.data, 255, mask2.channels * mask2.width * mask2.height);
+
+    if (!findSeam(imgs[i], imgs[i + 1], &mask1, &mask2))
+      goto clean;
+
+    int mul = 1;
+    if (i == 0) {
+      mul = 2;
+    }
+    masks[i] = mask1;
+    masks[i + 1] = mask2;
+    out_width +=
+        (mask1.width * mul) - static_cast<int>(mask1.width * IMAGE_CUT);
+
+    x_points[i + 1] = x_points[i] + mask2.width -
+                      static_cast<int>(mask1.width * IMAGE_CUT) - gap;
+  }
+
+  out_size = {0, 0, out_width, imgs[0]->height};
+  b = create_blender(MULTIBAND, out_size, bands);
+
+  for (int i = 0; i < imgs.size(); i++) {
+    feed(b, imgs[i], &masks[i], StitchPoint{x_points[i], 0});
+  }
+
+  blend(b);
+
+  if (b->result.data != NULL) {
+    int right_cut = 0;
+    for (int i = (b->result.width * RGB_CHANNELS) - 1; i > 200; i--) {
+      if (b->result.data[i] > 0) {
+        right_cut = b->result.width - (i / RGB_CHANNELS);
+        break;
+      }
+    }
+    crop_image(&b->result, 0, 0, 0, right_cut);
+    if (!save_image(&b->result, merged_filename)) {
+      result = false;
+      goto clean;
+    }
+    result = true;
+    goto clean;
+  }
+
+clean:
+  for (int i = 0; i < masks.size(); i++) {
+    if (masks[i].width == -1) {
+      destroy_image(&masks[i]);
+    }
+  }
+  destroy_blender(b);
+  return result;
+}
+
+bool LendoMerge::merge_six_by_image_path(std::vector<std::string> imgs_path,
+                                         std::string out_filename) {
+
+  std::vector<Image> imgs_s;
+
+  for (std::string img_path : imgs_path) {
+    imgs_s.push_back(create_image(img_path.c_str()));
+  }
+
+  std::vector<Image *> imgs(imgs_s.size());
+  for (int i = 0; i < imgs_s.size(); i++) {
+    imgs[i] = &imgs_s[i];
+  }
+
+  bool result = merge_six(imgs, out_filename.c_str());
+
+  for (Image *img : imgs) {
+    destroy_image(img);
+  }
 
   return result;
 }
