@@ -1,4 +1,4 @@
-#include "LendoMerge.h"
+#include "LendoMerge.hpp"
 #include "jpeg.h"
 #include <cstdio>
 #include <iostream>

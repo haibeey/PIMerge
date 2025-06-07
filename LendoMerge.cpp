@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-#include "LendoMerge.h"
+#include "LendoMerge.hpp"
 
 LendoMerge::~LendoMerge() {
   if (map_x != nullptr)
