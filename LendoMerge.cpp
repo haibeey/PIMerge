@@ -209,13 +209,13 @@ void LendoMerge::color_correct_sequence(const std::vector<Image *> &imgs) {
 
   std::vector<double> g = compute_global_adjustment(alphas);
 
-  const double brightness = 1.8;
+
 
   for (int i = 0; i < imgs.size(); i++) {
     std::vector<double> combined(3);
     for (int c = 0; c < 3; c++) {
       double gain = g[c] * alphas[i][c];
-      combined[c] = std::pow(gain, 1.0 / GAMMA) * brightness;
+      combined[c] = std::pow(gain, 1.0 / GAMMA) * BRIGHTNESS;
     }
 
     const int total = imgs[i]->width * imgs[i]->height * imgs[i]->channels;
@@ -594,6 +594,48 @@ bool LendoMerge::merge_two_by_image_path(std::string image_path_1,
   return result;
 }
 
+void LendoMerge::add_height(Image *img) {
+  int new_width = img->width;
+  int new_height = img->height;
+  int to_add = 0;
+  if (img->height < new_width / 2) {
+    to_add = (new_width / 2) - new_height;
+    new_height += to_add;
+  }
+
+  Image new_img = create_empty_image(new_width, new_height, img->channels);
+  int half_to_add = to_add / 2;
+
+  for (int y = 0; y < half_to_add; y++) {
+      unsigned char *image_start =img->data + ((half_to_add - y) * img->width * new_img.channels);
+      unsigned char *new_image_start =new_img.data + (y * img->width * new_img.channels);
+      memcpy(new_image_start, image_start, new_img.width * new_img.channels);
+  }
+
+  int yy = 0;
+  for (int y = (half_to_add); y < new_height - (half_to_add); y++) {
+
+    int x = 0;
+    unsigned char *new_image_start =
+        new_img.data + (y * new_img.width * new_img.channels);
+    unsigned char *image_start =
+        img->data + (yy * img->width * new_img.channels);
+    memcpy(new_image_start, image_start, new_img.width * new_img.channels);
+    yy++;
+  }
+
+  for (int y = 0; y < half_to_add; y++) {
+      unsigned char *image_start =img->data + ((img->height  - y - 1) * img->width * new_img.channels);
+      unsigned char *new_image_start =new_img.data + ((img->height + half_to_add + y) * img->width * new_img.channels);
+      memcpy(new_image_start, image_start, new_img.width * new_img.channels);
+  }
+
+  free(img->data);
+  img->data = new_img.data;
+  img->width = new_width;
+  img->height = new_height;
+}
+
 bool LendoMerge::merge_six(std::vector<Image *> imgs,
                            const char *merged_filename) {
 
@@ -652,7 +694,10 @@ bool LendoMerge::merge_six(std::vector<Image *> imgs,
         break;
       }
     }
-    crop_image(&b->result, 0, 0, 0, right_cut);
+    int join = (b->result.width - right_cut) -
+               static_cast<int>((b->result.width - right_cut) * 0.97f);
+    crop_image(&b->result, 0, 0, 0, right_cut + join);
+    add_height(&b->result);
     if (!save_image(&b->result, merged_filename)) {
       result = false;
       goto clean;

@@ -4,6 +4,7 @@
 #define IMAGE_CUT 0.2739361702
 #define GAMMA 2.2
 #define K 0.5f
+#define BRIGHTNESS 1.5
 
 #include "blending.h"
 #include "jpeg.h"
@@ -25,20 +26,20 @@ private:
   void color_correct_sequence(const std::vector<Image *> &imgs);
   bool findSeam(Image *img1, Image *img2, Image *mask1, Image *mask2);
   void bilinear_interpolate(Image *img);
+  bool merge_six(std::vector<Image *> imgs, const char *merged_filename);
+  void add_height(Image* img);
 
 public:
-  LendoMerge(float FOV) : FOV(FOV) {
-      beta = CAMROT - (FOV / 2);
-
-  };
+  LendoMerge(float FOV) : FOV(FOV) { beta = CAMROT - (FOV / 2); };
   ~LendoMerge();
-    bool merge_six(std::vector<Image*> imgs, const char *merged_filename);
-  std::string merge(std::vector<std::string>, int img_width,std::string result);
-  void downsample_image(std::string image_path,std::string out_image_path);
+
+  std::string merge(std::vector<std::string>, int img_width,
+                    std::string result);
+  void downsample_image(std::string image_path, std::string out_image_path);
   bool merge_two_by_image_path(std::string image_path_1,
                                std::string image_path_2,
                                std::string out_filename);
 
-
-  bool merge_six_by_image_path(std::vector<std::string> imgs_path ,std::string out_filename);
+  bool merge_six_by_image_path(std::vector<std::string> imgs_path,
+                               std::string out_filename);
 };
