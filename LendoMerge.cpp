@@ -567,7 +567,7 @@ void LendoMerge::downsample_image(std::string image_path,
                                   std::string out_image_path) {
   Image img = create_image(image_path.c_str());
   Image down;
-  int x = 3;
+  int x = 2;
   while (img.width > 300 && x > 0) {
     down = downsample(&img);
     destroy_image(&img);
