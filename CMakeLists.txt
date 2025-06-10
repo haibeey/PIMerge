@@ -14,6 +14,7 @@ if(NOT DEFINED BUILD_ARCH OR BUILD_ARCH STREQUAL "")
     message(FATAL_ERROR "ARCH is not set. Please set the ARCH environment variable. et with -DARCH=x86_64 etc")
 endif()
 set(STITCHER_PATH "${CMAKE_SOURCE_DIR}/libs/stitcher/${BUILD_OS}/${BUILD_ARCH}")
+set(LIBTURBOJPEG_PATH "${CMAKE_SOURCE_DIR}/libs/libturbojpeg/${BUILD_OS}/${BUILD_ARCH}")
 
 if(CMAKE_OS)
     message(FATAL_ERROR
@@ -22,7 +23,7 @@ if(CMAKE_OS)
 endif()
 
 include_directories(${CMAKE_SOURCE_DIR}/header-files/stitcher)
-link_directories(${STITCHER_PATH})
+link_directories(${STITCHER_PATH} ${LIBTURBOJPEG_PATH})
 
 add_executable(LendoMerge LendoMerge.cpp main.cpp)
-target_link_libraries(LendoMerge PRIVATE NativeStitcher)
+target_link_libraries(LendoMerge PRIVATE NativeStitcher turbojpeg)

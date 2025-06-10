@@ -7,7 +7,6 @@
 #include <cstdio>
 #include <cstring>
 #include <iostream>
-#include <malloc/_malloc.h>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -613,7 +612,7 @@ void LendoMerge::add_height(Image *img) {
   }
 
   int yy = 0;
-  for (int y = (half_to_add); y < new_height - (half_to_add); y++) {
+  for (int y = (half_to_add); y < new_height - (half_to_add) && yy < img->height; y++) {
 
     int x = 0;
     unsigned char *new_image_start =
