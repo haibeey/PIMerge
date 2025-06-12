@@ -27,13 +27,8 @@ MergePoint getIntersection(const MergeLine &line1, const MergeLine &line2) {
   float x3 = line2.A.x, y3 = line2.A.y;
   float x4 = line2.B.x, y4 = line2.B.y;
 
-  // Calculate the denominator
   float denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
-
-  // If denom is 0, lines are parallel or coincident
   assert(denom != 0.0f);
-
-  // Intersection point (using Cramer's Rule)
   float px =
       ((x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4)) /
       denom;
@@ -80,7 +75,6 @@ LendoMerge::LendoMerge(float hfov, float camera_rotation) {
   float dist_a = distanceBetween(connect_line.A, connect_line.B);
   float dist_b = distanceBetween(intersection, connect_line.B);
   image_cut = dist_b / dist_a;
-
 }
 
 LendoMerge::~LendoMerge() {
@@ -523,54 +517,6 @@ void LendoMerge::bilinear_interpolate(Image *img) {
   img->data = out.data;
 }
 
-bool LendoMerge::merge_two(Image *img1, Image *img2,
-                           const char *merged_filename) {
-
-  bool result = false;
-  Image mask1 = convert_RGB_to_gray(img1);
-  Image mask2 = convert_RGB_to_gray(img2);
-  if (!findSeam(img1, img2, &mask1, &mask2))
-    return false;
-
-  int bands = 5;
-
-  int out_width = (img1->width * 2) - static_cast<int>(img1->width * image_cut);
-
-  StitchRect out_size = {0, 0, out_width, img1->height};
-
-  Blender *b = create_blender(MULTIBAND, out_size, bands);
-
-  feed(b, img1, &mask1, StitchPoint{0, 0});
-  feed(b, img2, &mask2,
-       StitchPoint{
-           img1->width - (2 * static_cast<int>(img1->width * image_cut)), 0});
-  blend(b);
-
-  destroy_image(&mask1);
-  destroy_image(&mask2);
-
-  if (b->result.data != NULL) {
-    int right_cut = 0;
-    for (int i = (b->result.width * RGB_CHANNELS) - 1; i > 100; i--) {
-      if (b->result.data[i] > 0) {
-        right_cut = b->result.width - (i / RGB_CHANNELS);
-        break;
-      }
-    }
-    crop_image(&b->result, 0, 0, 0, right_cut);
-    if (!save_image(&b->result, merged_filename)) {
-      result = false;
-      goto clean;
-    }
-    result = true;
-    goto clean;
-  }
-
-clean:
-  destroy_blender(b);
-  return result;
-}
-
 std::string LendoMerge::merge(std::vector<std::string> imgs_path, int img_width,
                               std::string result) {
   // img_width holds the with of each image , assuming all images have the same
@@ -642,22 +588,6 @@ void LendoMerge::downsample_image(std::string image_path,
   }
   save_image(&img, out_image_path.c_str());
   destroy_image(&img);
-}
-
-bool LendoMerge::merge_two_by_image_path(std::string image_path_1,
-                                         std::string image_path_2,
-                                         std::string out_filename) {
-  Image img1 = create_image(image_path_1.c_str());
-  Image img2 = create_image(image_path_2.c_str());
-
-  color_correct_sequence(std::vector<Image *>{&img1, &img2});
-
-  bool result = merge_two(&img1, &img2, out_filename.c_str());
-
-  destroy_image(&img1);
-  destroy_image(&img2);
-
-  return result;
 }
 
 void LendoMerge::add_height(Image *img) {
@@ -809,6 +739,27 @@ bool LendoMerge::merge_by_image_path(std::vector<std::string> imgs_path,
   for (Image *img : imgs) {
     destroy_image(img);
   }
+
+  return result;
+}
+
+bool LendoMerge::merge_top_bottom(Image *img1, Image *img2,
+                                  const char *merged_filename) {
+  bool result = false;
+
+  return result;
+}
+
+bool LendoMerge::merge_top_bottom_by_image_path(std::string image_path_1,
+                                                std::string image_path_2,
+                                                std::string out_filename) {
+  Image img1 = create_image(image_path_1.c_str());
+  Image img2 = create_image(image_path_2.c_str());
+
+  bool result = merge_top_bottom(&img1, &img2, out_filename.c_str());
+
+  destroy_image(&img1);
+  destroy_image(&img2);
 
   return result;
 }
