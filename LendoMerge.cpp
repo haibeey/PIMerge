@@ -518,15 +518,14 @@ void LendoMerge::bilinear_interpolate(Image *img) {
 }
 
 void LendoMerge::downsample_image(std::string image_path,
-                                  std::string out_image_path) {
+                                  std::string out_image_path, int times) {
   Image img = create_image(image_path.c_str());
   Image down;
-  int x = 2;
-  while (img.width > 300 && x > 0) {
+  while (img.width > 300 && times > 0) {
     down = downsample(&img);
     destroy_image(&img);
     img = down;
-    x--;
+    times--;
   }
   save_image(&img, out_image_path.c_str());
   destroy_image(&img);

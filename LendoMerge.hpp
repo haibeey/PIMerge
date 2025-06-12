@@ -46,7 +46,7 @@ public:
   LendoMerge(float hfov, float camera_rotation);
   ~LendoMerge();
 
-  void downsample_image(std::string image_path, std::string out_image_path);
+  void downsample_image(std::string image_path, std::string out_image_path,int times = 2);
   bool merge_image_path_horizontal(std::vector<std::string> imgs_path,
                            std::string out_filename,bool add_height = true);
   bool merge_top_bottom_image_path(std::string image_path_1,
