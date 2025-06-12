@@ -14,6 +14,75 @@
 
 #include "LendoMerge.hpp"
 
+int mod(int a, int b) { return (a % b + b) % b; }
+float distanceBetween(const MergePoint &p1, const MergePoint &p2) {
+  float dx = p2.x - p1.x;
+  float dy = p2.y - p1.y;
+  return std::sqrt(dx * dx + dy * dy);
+}
+
+MergePoint getIntersection(const MergeLine &line1, const MergeLine &line2) {
+  float x1 = line1.A.x, y1 = line1.A.y;
+  float x2 = line1.B.x, y2 = line1.B.y;
+  float x3 = line2.A.x, y3 = line2.A.y;
+  float x4 = line2.B.x, y4 = line2.B.y;
+
+  // Calculate the denominator
+  float denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+
+  // If denom is 0, lines are parallel or coincident
+  assert(denom != 0.0f);
+
+  // Intersection point (using Cramer's Rule)
+  float px =
+      ((x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4)) /
+      denom;
+
+  float py =
+      ((x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)) /
+      denom;
+
+  return MergePoint{px, py};
+}
+
+LendoMerge::LendoMerge(float hfov, float camera_rotation) {
+  float half_angle_deg = hfov / 2.0;
+
+  float half_angle_rad = DEG2RAD(half_angle_deg);
+  float camera_rotation_rad = DEG2RAD(camera_rotation);
+  float reference_angle_rad_1 = DEG2RAD(-half_angle_deg + camera_rotation);
+  float reference_angle_rad_2 = DEG2RAD(half_angle_deg + camera_rotation);
+
+  float unit_lenght = 30.0;
+
+  MergeLine main_line_1 = {
+      {0.0f, 0.0f},
+      {-unit_lenght * sin(half_angle_rad), unit_lenght * cos(half_angle_rad)}};
+
+  MergeLine main_line_2 = {
+      {0.0f, 0.0f},
+      {unit_lenght * sin(half_angle_rad), unit_lenght * cos(half_angle_rad)}};
+
+  MergeLine connect_line = {main_line_1.B, main_line_2.B};
+
+  MergeLine ref_line_1 = {{0.0f, 0.0f},
+                          {unit_lenght * sin(reference_angle_rad_1),
+                           unit_lenght * cos(reference_angle_rad_1)}};
+
+  MergeLine ref_line_2 = {{0.0f, 0.0f},
+                          {unit_lenght * sin(reference_angle_rad_2),
+                           unit_lenght * cos(reference_angle_rad_2)}};
+
+  MergeLine connect_ref = {ref_line_1.B, ref_line_2.B};
+
+  MergePoint intersection = getIntersection(connect_line, connect_ref);
+
+  float dist_a = distanceBetween(connect_line.A, connect_line.B);
+  float dist_b = distanceBetween(intersection, connect_line.B);
+  image_cut = dist_b / dist_a;
+
+}
+
 LendoMerge::~LendoMerge() {
   if (map_x != nullptr)
     destroy_image_f(map_x.get());
@@ -26,8 +95,8 @@ bool LendoMerge::findSeam(Image *img1, Image *img2, Image *mask1,
 
   assert(img1->width == img2->width && img1->height == img2->height);
 
-  int err_width = static_cast<int>(img1->width * IMAGE_CUT);
-  int start = static_cast<int>(img1->width * (1 - IMAGE_CUT));
+  int err_width = static_cast<int>(img1->width * image_cut);
+  int start = static_cast<int>(img1->width * (1 - image_cut));
 
   std::vector<std::vector<short>> E(img1->height,
                                     std::vector<short>(err_width));
@@ -144,8 +213,8 @@ void LendoMerge::gamma_encode(ImageF *img, Image *out) {
 std::vector<double> LendoMerge::compute_alpha(ImageF *prev_img,
                                               ImageF *curr_img) {
 
-  int overlap_width = static_cast<int>(prev_img->width * IMAGE_CUT);
-  int start_overlap_width = static_cast<int>(prev_img->width * (1 - IMAGE_CUT));
+  int overlap_width = static_cast<int>(prev_img->width * image_cut);
+  int start_overlap_width = static_cast<int>(prev_img->width * (1 - image_cut));
 
   std::vector<double> sums_prev = std::vector<double>(3);
   std::vector<double> sums_cur = std::vector<double>(3);
@@ -207,8 +276,6 @@ void LendoMerge::color_correct_sequence(const std::vector<Image *> &imgs) {
         compute_alpha(&linearize_images[i - 1], &linearize_images[i]));
 
   std::vector<double> g = compute_global_adjustment(alphas);
-
-
 
   for (int i = 0; i < imgs.size(); i++) {
     std::vector<double> combined(3);
@@ -467,7 +534,7 @@ bool LendoMerge::merge_two(Image *img1, Image *img2,
 
   int bands = 5;
 
-  int out_width = (img1->width * 2) - static_cast<int>(img1->width * IMAGE_CUT);
+  int out_width = (img1->width * 2) - static_cast<int>(img1->width * image_cut);
 
   StitchRect out_size = {0, 0, out_width, img1->height};
 
@@ -476,7 +543,7 @@ bool LendoMerge::merge_two(Image *img1, Image *img2,
   feed(b, img1, &mask1, StitchPoint{0, 0});
   feed(b, img2, &mask2,
        StitchPoint{
-           img1->width - (2 * static_cast<int>(img1->width * IMAGE_CUT)), 0});
+           img1->width - (2 * static_cast<int>(img1->width * image_cut)), 0});
   blend(b);
 
   destroy_image(&mask1);
@@ -606,13 +673,17 @@ void LendoMerge::add_height(Image *img) {
   int half_to_add = to_add / 2;
 
   for (int y = 0; y < half_to_add; y++) {
-      unsigned char *image_start =img->data + ((half_to_add - y) * img->width * new_img.channels);
-      unsigned char *new_image_start =new_img.data + (y * img->width * new_img.channels);
-      memcpy(new_image_start, image_start, new_img.width * new_img.channels);
+    unsigned char *image_start =
+        img->data +
+        (((half_to_add - y) % img->height) * img->width * new_img.channels);
+    unsigned char *new_image_start =
+        new_img.data + ((y % new_height) * img->width * new_img.channels);
+    memcpy(new_image_start, image_start, new_img.width * new_img.channels);
   }
 
   int yy = 0;
-  for (int y = (half_to_add); y < new_height - (half_to_add) && yy < img->height; y++) {
+  for (int y = (half_to_add);
+       y < new_height - (half_to_add) && yy < img->height; y++) {
 
     int x = 0;
     unsigned char *new_image_start =
@@ -624,9 +695,13 @@ void LendoMerge::add_height(Image *img) {
   }
 
   for (int y = 0; y < half_to_add; y++) {
-      unsigned char *image_start =img->data + ((img->height  - y - 1) * img->width * new_img.channels);
-      unsigned char *new_image_start =new_img.data + ((img->height + half_to_add + y) * img->width * new_img.channels);
-      memcpy(new_image_start, image_start, new_img.width * new_img.channels);
+    unsigned char *image_start =
+        img->data +
+        (mod(img->height - y, img->height) * img->width * new_img.channels);
+    unsigned char *new_image_start =
+        new_img.data + (mod(img->height + half_to_add + y, new_height) *
+                        img->width * new_img.channels);
+    memcpy(new_image_start, image_start, new_img.width * new_img.channels);
   }
 
   free(img->data);
@@ -635,8 +710,8 @@ void LendoMerge::add_height(Image *img) {
   img->height = new_height;
 }
 
-bool LendoMerge::merge_six(std::vector<Image *> imgs,
-                           const char *merged_filename) {
+bool LendoMerge::merge_images(std::vector<Image *> imgs,
+                              const char *merged_filename) {
 
   assert(imgs.size() > 0 && imgs.size() % 6 == 0);
   color_correct_sequence(imgs);
@@ -670,10 +745,10 @@ bool LendoMerge::merge_six(std::vector<Image *> imgs,
     masks[i] = mask1;
     masks[i + 1] = mask2;
     out_width +=
-        (mask1.width * mul) - static_cast<int>(mask1.width * IMAGE_CUT);
+        (mask1.width * mul) - static_cast<int>(mask1.width * image_cut);
 
     x_points[i + 1] = x_points[i] + mask2.width -
-                      static_cast<int>(mask1.width * IMAGE_CUT) - gap;
+                      static_cast<int>(mask1.width * image_cut) - gap;
   }
 
   out_size = {0, 0, out_width, imgs[0]->height};
@@ -715,8 +790,8 @@ clean:
   return result;
 }
 
-bool LendoMerge::merge_six_by_image_path(std::vector<std::string> imgs_path,
-                                         std::string out_filename) {
+bool LendoMerge::merge_by_image_path(std::vector<std::string> imgs_path,
+                                     std::string out_filename) {
 
   std::vector<Image> imgs_s;
 
@@ -729,7 +804,7 @@ bool LendoMerge::merge_six_by_image_path(std::vector<std::string> imgs_path,
     imgs[i] = &imgs_s[i];
   }
 
-  bool result = merge_six(imgs, out_filename.c_str());
+  bool result = merge_images(imgs, out_filename.c_str());
 
   for (Image *img : imgs) {
     destroy_image(img);
