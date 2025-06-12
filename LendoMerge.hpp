@@ -38,22 +38,18 @@ private:
   void color_correct_sequence(const std::vector<Image *> &imgs);
   bool findSeam(Image *img1, Image *img2, Image *mask1, Image *mask2);
   void bilinear_interpolate(Image *img);
-  bool merge_images(std::vector<Image *> imgs, const char *merged_filename);
-  void add_height(Image *img);
+  bool merge_images_horizontal(std::vector<Image *> imgs, const char *merged_filename,bool add_height = true);
+  void add_height_to(Image *img);
 
 public:
+
   LendoMerge(float hfov, float camera_rotation);
   ~LendoMerge();
 
-  std::string merge(std::vector<std::string>, int img_width,
-                    std::string result);
   void downsample_image(std::string image_path, std::string out_image_path);
-
-
-  bool merge_by_image_path(std::vector<std::string> imgs_path,
-                           std::string out_filename);
-
-  bool merge_top_bottom_by_image_path(std::string image_path_1,
+  bool merge_image_path_horizontal(std::vector<std::string> imgs_path,
+                           std::string out_filename,bool add_height = true);
+  bool merge_top_bottom_image_path(std::string image_path_1,
                                       std::string image_path_2,
                                       std::string out_filename);
 };

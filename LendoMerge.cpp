@@ -48,7 +48,7 @@ LendoMerge::LendoMerge(float hfov, float camera_rotation) {
   float reference_angle_rad_1 = DEG2RAD(-half_angle_deg + camera_rotation);
   float reference_angle_rad_2 = DEG2RAD(half_angle_deg + camera_rotation);
 
-  float unit_lenght = 30.0;
+  float unit_lenght = 2000.0;
 
   MergeLine main_line_1 = {
       {0.0f, 0.0f},
@@ -517,64 +517,6 @@ void LendoMerge::bilinear_interpolate(Image *img) {
   img->data = out.data;
 }
 
-std::string LendoMerge::merge(std::vector<std::string> imgs_path, int img_width,
-                              std::string result) {
-  // img_width holds the with of each image , assuming all images have the same
-  // size assert(imgs_path.size() % 6 == 0);
-  int total_width = 0;
-  int max_height = 0;
-
-  for (std::string image_path : imgs_path) {
-    Image img = (create_image(image_path.c_str()));
-    total_width += img.width - (img_width / 2);
-    max_height = max(max_height, img.height);
-    destroy_image(&img);
-  }
-
-  StitchRect out_size = {0, 0, total_width, max_height};
-
-  Blender *b = create_blender(FEATHER, out_size, -1);
-
-  int x = 0;
-  int x_point = 0;
-  int l = 0, r = 1;
-  for (std::string image_path : imgs_path) {
-    Image img = (create_image(image_path.c_str()));
-    float cut = static_cast<float>(img_width) / 2.0f;
-    Image mask;
-
-    if (x > 0) {
-      l = 1;
-      r = 0;
-    }
-
-    mask = create_image_mask(img.width, img.height,
-                             cut / static_cast<float>(img.width), l, r);
-
-    feed(b, &img, &mask, StitchPoint{x_point, 0});
-
-    x_point += img.width - img_width;
-
-    destroy_image(&img);
-    destroy_image(&mask);
-    x++;
-  }
-
-  blend(b);
-  if (b->result.data != NULL) {
-    if (!save_image(&b->result, result.c_str())) {
-      result = false;
-      goto clean;
-    }
-    result = true;
-    goto clean;
-  }
-
-clean:
-  destroy_blender(b);
-  return result;
-}
-
 void LendoMerge::downsample_image(std::string image_path,
                                   std::string out_image_path) {
   Image img = create_image(image_path.c_str());
@@ -590,7 +532,7 @@ void LendoMerge::downsample_image(std::string image_path,
   destroy_image(&img);
 }
 
-void LendoMerge::add_height(Image *img) {
+void LendoMerge::add_height_to(Image *img) {
   int new_width = img->width;
   int new_height = img->height;
   int to_add = 0;
@@ -640,8 +582,9 @@ void LendoMerge::add_height(Image *img) {
   img->height = new_height;
 }
 
-bool LendoMerge::merge_images(std::vector<Image *> imgs,
-                              const char *merged_filename) {
+bool LendoMerge::merge_images_horizontal(std::vector<Image *> imgs,
+                                         const char *merged_filename,
+                                         bool add_height) {
 
   assert(imgs.size() > 0 && imgs.size() % 6 == 0);
   color_correct_sequence(imgs);
@@ -701,7 +644,9 @@ bool LendoMerge::merge_images(std::vector<Image *> imgs,
     int join = (b->result.width - right_cut) -
                static_cast<int>((b->result.width - right_cut) * 0.97f);
     crop_image(&b->result, 0, 0, 0, right_cut + join);
-    add_height(&b->result);
+    if (add_height)
+      add_height_to(&b->result);
+
     if (!save_image(&b->result, merged_filename)) {
       result = false;
       goto clean;
@@ -720,8 +665,9 @@ clean:
   return result;
 }
 
-bool LendoMerge::merge_by_image_path(std::vector<std::string> imgs_path,
-                                     std::string out_filename) {
+bool LendoMerge::merge_image_path_horizontal(std::vector<std::string> imgs_path,
+                                             std::string out_filename,
+                                             bool add_height) {
 
   std::vector<Image> imgs_s;
 
@@ -734,7 +680,7 @@ bool LendoMerge::merge_by_image_path(std::vector<std::string> imgs_path,
     imgs[i] = &imgs_s[i];
   }
 
-  bool result = merge_images(imgs, out_filename.c_str());
+  bool result = merge_images_horizontal(imgs, out_filename.c_str(), add_height);
 
   for (Image *img : imgs) {
     destroy_image(img);
@@ -747,12 +693,40 @@ bool LendoMerge::merge_top_bottom(Image *img1, Image *img2,
                                   const char *merged_filename) {
   bool result = false;
 
+  Image mask1 = create_vertical_mask(img1->width, img1->height, 0.5, 0, 1);
+  Image mask2 = create_empty_image(img2->width, img2->height, 1);
+  memset(mask2.data, 255, mask2.height * mask2.width * sizeof(unsigned char));
+
+  StitchRect out_size = {0, 0, img1->width,
+                         static_cast<int>(img1->height * 0.5) + img2->height};
+
+  int bands = 2;
+  Blender *b = create_blender(FEATHER, out_size, bands);
+
+
+  feed(b, img1, &mask1, {0, 0});
+  feed(b, img2, &mask2, {0, static_cast<int>((img1->height * 0.5))});
+  blend(b);
+
+  add_height_to(&b->result);
+  result = true;
+  if (!save_image(&b->result, merged_filename)) {
+    result = false;
+    goto clean;
+  }
+
+clean:
+  destroy_image(&mask1);
+  destroy_image(&mask2);
+  destroy_blender(b);
+
   return result;
 }
 
-bool LendoMerge::merge_top_bottom_by_image_path(std::string image_path_1,
-                                                std::string image_path_2,
-                                                std::string out_filename) {
+bool LendoMerge::merge_top_bottom_image_path(std::string image_path_1,
+                                             std::string image_path_2,
+                                             std::string out_filename) {
+
   Image img1 = create_image(image_path_1.c_str());
   Image img2 = create_image(image_path_2.c_str());
 
