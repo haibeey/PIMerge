@@ -44,7 +44,6 @@ LendoMerge::LendoMerge(float hfov, float camera_rotation) {
   float half_angle_deg = hfov / 2.0;
 
   float half_angle_rad = DEG2RAD(half_angle_deg);
-  float camera_rotation_rad = DEG2RAD(camera_rotation);
   float reference_angle_rad_1 = DEG2RAD(-half_angle_deg + camera_rotation);
   float reference_angle_rad_2 = DEG2RAD(half_angle_deg + camera_rotation);
 
@@ -556,7 +555,6 @@ void LendoMerge::add_height_to(Image *img) {
   for (int y = (half_to_add);
        y < new_height - (half_to_add) && yy < img->height; y++) {
 
-    int x = 0;
     unsigned char *new_image_start =
         new_img.data + (y * new_img.width * new_img.channels);
     unsigned char *image_start =
@@ -640,8 +638,7 @@ bool LendoMerge::merge_images_horizontal(std::vector<Image *> imgs,
         break;
       }
     }
-    int join = (b->result.width - right_cut) -
-               static_cast<int>((b->result.width - right_cut) * 0.97f);
+    int join =  (static_cast<int>( imgs[0]->width * image_cut) / 2) + right_cut;
     crop_image(&b->result, 0, 0, 0, right_cut + join);
     if (add_height)
       add_height_to(&b->result);
