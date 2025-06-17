@@ -6,7 +6,7 @@
 
 int main() {
 
-  LendoMerge lendoMerge(104,60);
+  LendoMerge lendoMerge(104, 60);
 
   lendoMerge.merge_image_path_horizontal(
       std::vector<std::string>{
@@ -19,6 +19,7 @@ int main() {
       },
       "out.jpg");
 
+  lendoMerge.crop_panorama_by_path("out.jpg", "out_cropped.jpg");
   // LendoMerge lendoMerge(65.11, 30);
 
   // lendoMerge.merge_image_path_horizontal(
@@ -55,18 +56,10 @@ int main() {
   //     },
   //     "top.jpg", false);
 
-  // lendoMerge.merge_top_bottom_image_path("top.jpg","bottom.jpg","final_result.jpg");
+  // lendoMerge.merge_top_bottom_image_path("top.jpg", "bottom.jpg",
+  //                                        "final_result.jpg");
 
-  // Image img1 = create_image("files/debug24/top1.jpg");
-  // Image img2 = create_image("files/debug24/bottom1.jpg");
-
-
+  // lendoMerge.crop_panorama_by_path("final_result.jpg", "out_cropped.jpg");
 
   return 0;
 }
-
-// g++-14  -Iheader-files/stitcher  -I./
-// -L/Users/abrahamakerele/p-h/lendostuff/stitcher/installs/native-stitcher/macos/x86_64/lib
-// -lNativeStitcher  -o lendomerge LendoMerge.cpp main.cpp export
-// DYLD_LIBRARY_PATH=/Users/abrahamakerele/p-h/lendostuff/stitcher/installs/native-stitcher/macos/x86_64/lib
-// ./lendomerge

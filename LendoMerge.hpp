@@ -26,6 +26,7 @@ struct MergeLine {
 class LendoMerge {
 private:
   float image_cut;
+  int to_add = 0;
   std::unique_ptr<ImageF> map_x = nullptr, map_y = nullptr;
 
   void linearize(Image *img, ImageF *out);
@@ -38,18 +39,24 @@ private:
   void color_correct_sequence(const std::vector<Image *> &imgs);
   bool findSeam(Image *img1, Image *img2, Image *mask1, Image *mask2);
   void bilinear_interpolate(Image *img);
-  bool merge_images_horizontal(std::vector<Image *> imgs, const char *merged_filename,bool add_height = true);
+  bool merge_images_horizontal(std::vector<Image *> imgs,
+                               const char *merged_filename,
+                               bool add_height = true);
   void add_height_to(Image *img);
+  bool crop_panorama(Image *img);
 
 public:
-
   LendoMerge(float hfov, float camera_rotation);
   ~LendoMerge();
 
-  void downsample_image(std::string image_path, std::string out_image_path,int times = 2);
+  void downsample_image(std::string image_path, std::string out_image_path,
+                        int times = 2);
   bool merge_image_path_horizontal(std::vector<std::string> imgs_path,
-                           std::string out_filename,bool add_height = true);
+                                   std::string out_filename,
+                                   bool add_height = true);
   bool merge_top_bottom_image_path(std::string image_path_1,
-                                      std::string image_path_2,
-                                      std::string out_filename);
+                                   std::string image_path_2,
+                                   std::string out_filename);
+
+  bool crop_panorama_by_path(std::string image_path, std::string out_filename);
 };

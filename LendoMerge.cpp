@@ -533,7 +533,7 @@ void LendoMerge::downsample_image(std::string image_path,
 void LendoMerge::add_height_to(Image *img) {
   int new_width = img->width;
   int new_height = img->height;
-  int to_add = 0;
+  to_add = 0;
   if (img->height < new_width / 2) {
     to_add = (new_width / 2) - new_height;
     new_height += to_add;
@@ -638,7 +638,7 @@ bool LendoMerge::merge_images_horizontal(std::vector<Image *> imgs,
         break;
       }
     }
-    int join =  (static_cast<int>( imgs[0]->width * image_cut) / 2) + right_cut;
+    int join = (static_cast<int>(imgs[0]->width * image_cut) / 2) + right_cut;
     crop_image(&b->result, 0, 0, 0, right_cut + join);
     if (add_height)
       add_height_to(&b->result);
@@ -699,7 +699,6 @@ bool LendoMerge::merge_top_bottom(Image *img1, Image *img2,
   int bands = 2;
   Blender *b = create_blender(FEATHER, out_size, bands);
 
-
   feed(b, img1, &mask1, {0, 0});
   feed(b, img2, &mask2, {0, static_cast<int>((img1->height * 0.5))});
   blend(b);
@@ -731,5 +730,42 @@ bool LendoMerge::merge_top_bottom_image_path(std::string image_path_1,
   destroy_image(&img1);
   destroy_image(&img2);
 
+  return result;
+}
+
+bool LendoMerge::crop_panorama(Image *img) {
+
+  int fifth_of_height = static_cast<int>(0.3 * img->height);
+
+  int y = 20;
+  int stride = (img->width * img->channels) - img->channels;
+  for (; y < fifth_of_height; y++) {
+    int pos = (y * img->width) * img->channels;
+    bool same = true;
+    for (int c = 0; c < img->channels; c++) {
+      if (img->data[c] != img->data[pos + c] ||
+          img->data[stride + c] != img->data[pos + stride + c]) {
+        same = false;
+        break;
+      }
+    }
+    if (same) {
+      break;
+    }
+  }
+
+  crop_image(img, y, y, 0, 0);
+
+  return true;
+}
+
+bool LendoMerge::crop_panorama_by_path(std::string image_path,
+                                       std::string out_filename) {
+  Image img = create_image(image_path.c_str());
+  bool result = crop_panorama(&img);
+  if (!save_image(&img, out_filename.c_str())) {
+    result = false;
+  }
+  destroy_image(&img);
   return result;
 }
