@@ -639,7 +639,7 @@ bool LendoMerge::merge_images_horizontal(std::vector<Image *> imgs,
       }
     }
     int join = (static_cast<int>(imgs[0]->width * image_cut) / 2) + right_cut;
-    crop_image(&b->result, 0, 0, 0, right_cut + join);
+    crop_image(&b->result, 0, 0, 0,  join);
     if (add_height)
       add_height_to(&b->result);
 

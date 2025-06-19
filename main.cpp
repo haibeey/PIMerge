@@ -19,7 +19,7 @@ int main() {
       },
       "out.jpg");
 
-  lendoMerge.crop_panorama_by_path("out.jpg", "out_cropped.jpg");
+  // lendoMerge.crop_panorama_by_path("out.jpg", "out_cropped.jpg");
   // LendoMerge lendoMerge(65.11, 30);
 
   // lendoMerge.merge_image_path_horizontal(
@@ -60,6 +60,26 @@ int main() {
   //                                        "final_result.jpg");
 
   // lendoMerge.crop_panorama_by_path("final_result.jpg", "out_cropped.jpg");
+  //
+  //
+  // LendoMerge lendoMerge(65.11, 30);
+
+  // lendoMerge.merge_image_path_horizontal(
+  //     std::vector<std::string>{
+  //         "files/debug/bottom1.jpg",
+  //         "files/debug/bottom2.jpg",
+  //         "files/debug/bottom3.jpg",
+  //         "files/debug/bottom4.jpg",
+  //         "files/debug/bottom5.jpg",
+  //         "files/debug/bottom6.jpg",
+  //         "files/debug/bottom7.jpg",
+  //         "files/debug/bottom8.jpg",
+  //         "files/debug/bottom9.jpg",
+  //         "files/debug/bottom10.jpg",
+  //         "files/debug/bottom11.jpg",
+  //         "files/debug/bottom12.jpg",
+  //     },
+  //     "bottom.jpg", false);
 
   return 0;
 }
