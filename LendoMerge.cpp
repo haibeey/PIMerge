@@ -519,6 +519,9 @@ void LendoMerge::bilinear_interpolate(Image *img) {
 void LendoMerge::downsample_image(std::string image_path,
                                   std::string out_image_path, int times) {
   Image img = create_image(image_path.c_str());
+  if (img.width <= 0 || img.height <= 0) {
+    return ;
+  }
   Image down;
   while (img.width > 300 && times > 0) {
     down = downsample(&img);
@@ -531,6 +534,8 @@ void LendoMerge::downsample_image(std::string image_path,
 }
 
 void LendoMerge::add_height_to(Image *img) {
+  if (img->width <= 0 || img->height <= 0)
+    return;
   int new_width = img->width;
   int new_height = img->height;
   to_add = 0;
@@ -584,6 +589,11 @@ bool LendoMerge::merge_images_horizontal(std::vector<Image *> imgs,
                                          bool add_height) {
 
   assert(imgs.size() > 0 && imgs.size() % 6 == 0);
+  for (int i = 0; i < imgs.size(); i++) {
+    if (imgs[i]->width <= 0 || imgs[i]->height <= 0) {
+      return false;
+    }
+  }
   color_correct_sequence(imgs);
   bool result = false;
   int bands = 5;
@@ -639,7 +649,7 @@ bool LendoMerge::merge_images_horizontal(std::vector<Image *> imgs,
       }
     }
     int join = (static_cast<int>(imgs[0]->width * image_cut) / 2) + right_cut;
-    crop_image(&b->result, 0, 0, 0,  join);
+    crop_image(&b->result, 0, 0, 0, join);
     if (add_height)
       add_height_to(&b->result);
 
@@ -688,6 +698,10 @@ bool LendoMerge::merge_image_path_horizontal(std::vector<std::string> imgs_path,
 bool LendoMerge::merge_top_bottom(Image *img1, Image *img2,
                                   const char *merged_filename) {
   bool result = false;
+  if (img1->width <= 0 || img1->height <= 0 || img2->width <= 0 ||
+      img2->height <= 0) {
+    return false;
+  }
 
   Image mask1 = create_vertical_mask(img1->width, img1->height, 0.5, 0, 1);
   Image mask2 = create_empty_image(img2->width, img2->height, 1);
@@ -735,6 +749,9 @@ bool LendoMerge::merge_top_bottom_image_path(std::string image_path_1,
 
 bool LendoMerge::crop_panorama(Image *img) {
 
+  if (img->width <= 0 || img->height <= 0) {
+    return false;
+  }
   int fifth_of_height = static_cast<int>(0.3 * img->height);
 
   int y = 20;
