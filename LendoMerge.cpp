@@ -205,35 +205,39 @@ void LendoMerge::gamma_encode(ImageF *img, Image *out) {
 
 std::vector<double> LendoMerge::compute_alpha(ImageF *prev_img,
                                               ImageF *curr_img) {
+    int overlap_width = static_cast<int>(prev_img->width * image_cut);
+    int start_overlap_width = static_cast<int>(prev_img->width * (1 - image_cut));
 
-  int overlap_width = static_cast<int>(prev_img->width * image_cut);
-  int start_overlap_width = static_cast<int>(prev_img->width * (1 - image_cut));
+    std::vector<double> sums_prev(3, 0.0);
+    std::vector<double> sums_cur(3, 0.0);
 
-  std::vector<double> sums_prev = std::vector<double>(3);
-  std::vector<double> sums_cur = std::vector<double>(3);
+    for (int channel = 0; channel < prev_img->channels; channel++) {
+        for (int i = 0; i < prev_img->height; i++) {
+            for (int j = 0; j < overlap_width; j++) {
+                int cur_j = j;
+                int prev_j = j + start_overlap_width;
 
-  for (int channel = 0; channel < prev_img->channels; channel++) {
-    for (int i = 0; i < prev_img->height; i++) {
-      for (int j = 0; j < overlap_width; j++) {
-        int cur_pos =
-            (i * prev_img->width) + ((j + channel) * prev_img->channels);
-        int prev_pos =
-            (i * prev_img->width) +
-            ((j + start_overlap_width + channel) * prev_img->channels);
+                if (cur_j >= prev_img->width || prev_j >= prev_img->width) {
+                    continue;
+                }
 
-        sums_prev[channel] += prev_img->data[prev_pos];
-        sums_cur[channel] += curr_img->data[cur_pos];
-      }
+                int cur_pos = ((i * prev_img->width) + cur_j) * prev_img->channels + channel;
+                int prev_pos = ((i * prev_img->width) + prev_j) * prev_img->channels + channel;
+
+                sums_prev[channel] += prev_img->data[prev_pos];
+                sums_cur[channel] += curr_img->data[cur_pos];
+            }
+        }
     }
-  }
 
-  std::vector<double> result;
-  for (int i = 0; i < sums_prev.size(); i++) {
-    result.push_back(sums_prev[i] / (sums_cur[i] + 1e-8));
-  }
+    std::vector<double> result;
+    for (int i = 0; i < sums_prev.size(); i++) {
+        result.push_back(sums_prev[i] / (sums_cur[i] + 1e-8));
+    }
 
-  return result;
+    return result;
 }
+
 
 std::vector<double>
 LendoMerge::compute_global_adjustment(std::vector<std::vector<double>> alphas) {
@@ -523,7 +527,7 @@ void LendoMerge::downsample_image(std::string image_path,
     return ;
   }
   Image down;
-  while (img.width > 300 && times > 0) {
+  while (img.width > 400 && times > 0) {
     down = downsample(&img);
     destroy_image(&img);
     img = down;

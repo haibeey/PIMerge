@@ -19,6 +19,8 @@ int main() {
       },
       "out.jpg");
 
+  std::cout << get_cpus_count() << "\n";
+
   // lendoMerge.crop_panorama_by_path("out.jpg", "out_cropped.jpg");
   // LendoMerge lendoMerge(65.11, 30);
 
