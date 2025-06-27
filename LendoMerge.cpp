@@ -205,39 +205,40 @@ void LendoMerge::gamma_encode(ImageF *img, Image *out) {
 
 std::vector<double> LendoMerge::compute_alpha(ImageF *prev_img,
                                               ImageF *curr_img) {
-    int overlap_width = static_cast<int>(prev_img->width * image_cut);
-    int start_overlap_width = static_cast<int>(prev_img->width * (1 - image_cut));
+  int overlap_width = static_cast<int>(prev_img->width * image_cut);
+  int start_overlap_width = static_cast<int>(prev_img->width * (1 - image_cut));
 
-    std::vector<double> sums_prev(3, 0.0);
-    std::vector<double> sums_cur(3, 0.0);
+  std::vector<double> sums_prev(3, 0.0);
+  std::vector<double> sums_cur(3, 0.0);
 
-    for (int channel = 0; channel < prev_img->channels; channel++) {
-        for (int i = 0; i < prev_img->height; i++) {
-            for (int j = 0; j < overlap_width; j++) {
-                int cur_j = j;
-                int prev_j = j + start_overlap_width;
+  for (int channel = 0; channel < prev_img->channels; channel++) {
+    for (int i = 0; i < prev_img->height; i++) {
+      for (int j = 0; j < overlap_width; j++) {
+        int cur_j = j;
+        int prev_j = j + start_overlap_width;
 
-                if (cur_j >= prev_img->width || prev_j >= prev_img->width) {
-                    continue;
-                }
-
-                int cur_pos = ((i * prev_img->width) + cur_j) * prev_img->channels + channel;
-                int prev_pos = ((i * prev_img->width) + prev_j) * prev_img->channels + channel;
-
-                sums_prev[channel] += prev_img->data[prev_pos];
-                sums_cur[channel] += curr_img->data[cur_pos];
-            }
+        if (cur_j >= prev_img->width || prev_j >= prev_img->width) {
+          continue;
         }
-    }
 
-    std::vector<double> result;
-    for (int i = 0; i < sums_prev.size(); i++) {
-        result.push_back(sums_prev[i] / (sums_cur[i] + 1e-8));
-    }
+        int cur_pos =
+            ((i * prev_img->width) + cur_j) * prev_img->channels + channel;
+        int prev_pos =
+            ((i * prev_img->width) + prev_j) * prev_img->channels + channel;
 
-    return result;
+        sums_prev[channel] += prev_img->data[prev_pos];
+        sums_cur[channel] += curr_img->data[cur_pos];
+      }
+    }
+  }
+
+  std::vector<double> result;
+  for (int i = 0; i < sums_prev.size(); i++) {
+    result.push_back(sums_prev[i] / (sums_cur[i] + 1e-8));
+  }
+
+  return result;
 }
-
 
 std::vector<double>
 LendoMerge::compute_global_adjustment(std::vector<std::vector<double>> alphas) {
@@ -524,7 +525,7 @@ void LendoMerge::downsample_image(std::string image_path,
                                   std::string out_image_path, int times) {
   Image img = create_image(image_path.c_str());
   if (img.width <= 0 || img.height <= 0) {
-    return ;
+    return;
   }
   Image down;
   while (img.width > 400 && times > 0) {
@@ -701,7 +702,7 @@ bool LendoMerge::merge_image_path_horizontal(std::vector<std::string> imgs_path,
 
 bool LendoMerge::merge_top_bottom(Image *img1, Image *img2,
                                   const char *merged_filename) {
-  bool result = false;
+
   if (img1->width <= 0 || img1->height <= 0 || img2->width <= 0 ||
       img2->height <= 0) {
     return false;
@@ -709,31 +710,34 @@ bool LendoMerge::merge_top_bottom(Image *img1, Image *img2,
 
   Image mask1 = create_vertical_mask(img1->width, img1->height, 0.5, 0, 1);
   Image mask2 = create_empty_image(img2->width, img2->height, 1);
-  memset(mask2.data, 255, mask2.height * mask2.width * sizeof(unsigned char));
 
-  StitchRect out_size = {0, 0, img1->width,
-                         static_cast<int>(img1->height * 0.5) + img2->height};
+  memset(mask2.data, 255, mask2.width * mask2.height);
 
-  int bands = 2;
+  int halfH = img1->height / 2;
+  StitchRect out_size = {
+      .x = 0, .y = 0, .width = img1->width, .height = halfH + img2->height};
+
+  const int bands = 2;
   Blender *b = create_blender(FEATHER, out_size, bands);
-
-  feed(b, img1, &mask1, {0, 0});
-  feed(b, img2, &mask2, {0, static_cast<int>((img1->height * 0.5))});
-  blend(b);
-
-  add_height_to(&b->result);
-  result = true;
-  if (!save_image(&b->result, merged_filename)) {
-    result = false;
-    goto clean;
+  if (!b) {
+    destroy_image(&mask1);
+    destroy_image(&mask2);
+    return false;
   }
 
-clean:
+  feed(b, img1, &mask1, (StitchPoint){0, 0});
+  feed(b, img2, &mask2, (StitchPoint){0, halfH});
+
+  blend(b);
+  add_height_to(&b->result);
+
+  bool saved = save_image(&b->result, merged_filename);
+
   destroy_image(&mask1);
   destroy_image(&mask2);
   destroy_blender(b);
 
-  return result;
+  return saved;
 }
 
 bool LendoMerge::merge_top_bottom_image_path(std::string image_path_1,
