@@ -576,7 +576,7 @@ void LendoMerge::add_height_to(Image *img) {
   for (int y = 0; y < half_to_add; y++) {
     unsigned char *image_start =
         img->data +
-        (mod(img->height - y, img->height) * img->width * new_img.channels);
+        (mod(img->height - y - 1, img->height) * img->width * new_img.channels);
     unsigned char *new_image_start =
         new_img.data + (mod(img->height + half_to_add + y, new_height) *
                         img->width * new_img.channels);
