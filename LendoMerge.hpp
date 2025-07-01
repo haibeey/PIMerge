@@ -42,7 +42,7 @@ private:
   bool merge_images_horizontal(std::vector<Image *> imgs,
                                const char *merged_filename,
                                bool add_height = true);
-  void add_height_to(Image *img);
+  bool add_height_to(Image *img);
   bool crop_panorama(Image *img);
 
 public:
@@ -59,4 +59,6 @@ public:
                                    std::string out_filename);
 
   bool crop_panorama_by_path(std::string image_path, std::string out_filename);
+  bool add_height_to_image_path(std::string image_path,
+                                std::string out_filename);
 };
