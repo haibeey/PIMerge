@@ -13,6 +13,27 @@
 #include "jpeg.h"
 #include <vector>
 
+#ifdef __ANDROID__
+#include <android/log.h>
+
+#define LOG_TAG "MyApp"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+
+#elif defined(__APPLE__)
+#include <TargetConditionals.h>
+#include <iostream>
+#include <sstream>
+
+#if TARGET_OS_IPHONE
+#define LOGI(...) do { \
+    std::ostringstream oss; \
+    oss << __VA_ARGS__; \
+    std::cout << "[INFO] " << oss.str() << std::endl; \
+} while (0)
+
+#endif
+#endif
+
 struct MergePoint {
   float x;
   float y;
@@ -61,4 +82,5 @@ public:
   bool crop_panorama_by_path(std::string image_path, std::string out_filename);
   bool add_height_to_image_path(std::string image_path,
                                 std::string out_filename);
+  void blur_image(Image *img, int start, int end);
 };
