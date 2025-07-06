@@ -803,8 +803,7 @@ bool LendoMerge::crop_panorama_by_path(std::string image_path,
 bool LendoMerge::add_height_to_image_path(std::string image_path,
                                           std::string out_filename) {
   Image img = create_image(image_path.c_str());
-  std::cout << img.width << " " << img.width / 2 << " " << img.height
-            << std::endl;
+
   bool result = add_height_to(&img);
 
   if (!save_image(&img, out_filename.c_str())) {
