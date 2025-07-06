@@ -25,5 +25,6 @@ endif()
 include_directories(${CMAKE_SOURCE_DIR}/header-files/stitcher)
 link_directories(${STITCHER_PATH} ${LIBTURBOJPEG_PATH})
 
-add_executable(LendoMerge LendoMerge.cpp main.cpp)
-target_link_libraries(LendoMerge PRIVATE NativeStitcher turbojpeg)
+add_executable(${PROJECT_NAME} LendoMerge.cpp blur.cpp main.cpp)
+target_compile_options(${PROJECT_NAME} PRIVATE -O3)
+target_link_libraries(${PROJECT_NAME} PRIVATE NativeStitcher turbojpeg)

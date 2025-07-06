@@ -560,6 +560,7 @@ bool LendoMerge::add_height_to(Image *img) {
         new_img.data + ((y % new_height) * img->width * new_img.channels);
     memcpy(new_image_start, image_start, new_img.width * new_img.channels);
   }
+  blur_image(&new_img, 0, half_to_add + 1);
 
   int yy = 0;
   for (int y = (half_to_add);
@@ -582,6 +583,8 @@ bool LendoMerge::add_height_to(Image *img) {
                         img->width * new_img.channels);
     memcpy(new_image_start, image_start, new_img.width * new_img.channels);
   }
+
+  blur_image(&new_img, img->height + half_to_add, new_img.height);
 
   free(img->data);
   img->data = new_img.data;
@@ -800,6 +803,7 @@ bool LendoMerge::crop_panorama_by_path(std::string image_path,
 bool LendoMerge::add_height_to_image_path(std::string image_path,
                                           std::string out_filename) {
   Image img = create_image(image_path.c_str());
+
   bool result = add_height_to(&img);
 
   if (!save_image(&img, out_filename.c_str())) {
