@@ -1,10 +1,13 @@
 
-#include "simde/simde/x86/avx2.h"
 #include "LendoMerge.hpp"
+#include "simde/simde/x86/avx2.h"
+#include "simde/simde/x86/sse2.h"
+#include <cstring>
 
 int blur_1d_v_simd(int x, int width, int *row0, int *row1, int *row2, int *row3,
                    int *row4, unsigned char *out_row) {
 
+  int pp = 0;
   for (; x < width - 8; x += 8) {
     simde__m256i r0 = simde_mm256_loadu_si256((const simde__m256i *)(row0 + x));
     simde__m256i r1 = simde_mm256_loadu_si256((const simde__m256i *)(row1 + x));
@@ -12,14 +15,20 @@ int blur_1d_v_simd(int x, int width, int *row0, int *row1, int *row2, int *row3,
     simde__m256i r3 = simde_mm256_loadu_si256((const simde__m256i *)(row3 + x));
     simde__m256i r4 = simde_mm256_loadu_si256((const simde__m256i *)(row4 + x));
 
-    simde__m256i out = simde_mm256_srai_epi32(
-        simde_mm256_add_epi32(
-            r0,
-            simde_mm256_add_epi32(
-                r1, simde_mm256_add_epi32(r2, simde_mm256_add_epi32(r3, r4)))),
-        4);
+    simde__m256i sum = simde_mm256_add_epi32(
+        r0, simde_mm256_add_epi32(
+                r1, simde_mm256_add_epi32(r2, simde_mm256_add_epi32(r3, r4))));
 
-    simde_mm256_storeu_si256((simde__m256i *)out_row, out);
+    simde__m256 fsum = simde_mm256_cvtepi32_ps(sum);
+    const simde__m256 inv25 = simde_mm256_set1_ps(1.0f / 25.0f);
+    simde__m256 fres = simde_mm256_mul_ps(fsum, inv25);
+    simde__m256i out32 = simde_mm256_cvtps_epi32(fres);
+
+    simde__m128i lo16 = simde_mm256_castsi256_si128(out32);
+    simde__m128i hi16 = simde_mm256_extracti128_si256(out32, 1);
+    simde__m128i packed = simde_mm_packs_epi32(lo16, hi16);
+    simde__m128i out8 = simde_mm_packus_epi16(packed, packed);
+    simde_mm_storel_epi64((simde__m128i *)out_row, out8);
 
     out_row += 8;
   }
@@ -48,7 +57,7 @@ int blur_1d_3c(int x, int width, unsigned char *cur_src, int src_width,
   return x;
 }
 
-void LendoMerge::blur_image(Image *img, int start, int end) {
+void LendoMerge::blur_image_helper(Image *img, int start, int end) {
   int y = start;
 
   unsigned char *rows[5] = {img->data + (reflect_index(y - 2, img->height)) *
@@ -66,8 +75,6 @@ void LendoMerge::blur_image(Image *img, int start, int end) {
   if (!temp_dst_out)
     return;
 
-  int cache[16];
-
   int *temp_dst_rows[5] = {temp_dst_out,
                            temp_dst_out + (img->width * RGB_CHANNELS),
                            temp_dst_out + (2 * img->width * RGB_CHANNELS),
@@ -76,75 +83,78 @@ void LendoMerge::blur_image(Image *img, int start, int end) {
 
   int s_y = -2;
   int e_y = 3;
-
   for (; y < end; y++) {
 
     for (; s_y < e_y; s_y++) {
+      int x = 0;
       unsigned char *cur_src = rows[s_y + 2];
       int *temp_out = temp_dst_rows[s_y + 2];
-      int x = 0;
-      const unsigned char *src0 = cur_src;
 
       x = blur_1d_3c(x, min(6, img->width), cur_src, img->width, temp_out);
-      temp_out = temp_out + (x * 6);
+      temp_out = temp_out + (x * 3);
 
       const unsigned char *src0_1 = cur_src;
       const unsigned char *src0_2 = cur_src + 3;
       const unsigned char *src1 = cur_src + 6;
       const unsigned char *src2 = cur_src + 9;
       const unsigned char *src3 = cur_src + 12;
-      for (; x <= img->width - 5; x += 5) {
+      for (; x <= img->width - 6; x += 5) {
         simde__m256i a = simde_mm256_cvtepu8_epi16(
-            simde_mm_loadu_si128((const simde__m128i *)src0));
+            simde_mm_loadu_si128((const simde__m128i *)src0_1));
 
         simde__m256i b = simde_mm256_cvtepu8_epi16(
-            simde_mm_loadu_si128((const simde__m128i *)src1));
+            simde_mm_loadu_si128((const simde__m128i *)src0_2));
 
         simde__m256i c = simde_mm256_cvtepu8_epi16(
-            simde_mm_loadu_si128((const simde__m128i *)src2));
+            simde_mm_loadu_si128((const simde__m128i *)src1));
 
         simde__m256i d = simde_mm256_cvtepu8_epi16(
             simde_mm_loadu_si128((const simde__m128i *)src2));
 
         simde__m256i e = simde_mm256_cvtepu8_epi16(
-            simde_mm_loadu_si128((const simde__m128i *)src2));
+            simde_mm_loadu_si128((const simde__m128i *)src3));
 
         simde__m256i sum = simde_mm256_add_epi16(
             a, simde_mm256_add_epi16(
                    b, simde_mm256_add_epi16(c, simde_mm256_add_epi16(d, e))));
 
-        simde_mm256_storeu_si256((simde__m256i *)cache, sum);
+        simde__m256i lo_sum =
+            simde_mm256_cvtepi16_epi32(simde_mm256_castsi256_si128(sum));
+        simde__m256i hi_sum =
+            simde_mm256_cvtepi16_epi32(simde_mm256_extracti128_si256(sum, 1));
 
-        temp_out[0] = cache[0], temp_out[1] = cache[1], temp_out[2] = cache[2];
-        temp_out[3] = cache[6], temp_out[4] = cache[7], temp_out[5] = cache[8];
-        temp_out[6] = cache[12], temp_out[7] = cache[13],
-        temp_out[8] = cache[14];
+        simde_mm256_storeu_si256((simde__m256i *)temp_out, lo_sum);
+        simde_mm256_storeu_si256((simde__m256i *)(temp_out + 8), hi_sum);
 
         temp_out += (5 * RGB_CHANNELS);
-        src0 += (5 * RGB_CHANNELS), src1 += (5 * RGB_CHANNELS); src0_2 += (5 * RGB_CHANNELS);
-        src2 += (5 * RGB_CHANNELS);src0_1 += (5 * RGB_CHANNELS);
+        src0_1 += (5 * RGB_CHANNELS);
+        src0_2 += (5 * RGB_CHANNELS);
+        src1 += (5 * RGB_CHANNELS);
+        src2 += (5 * RGB_CHANNELS);
+        src3 += (5 * RGB_CHANNELS);
       }
-
       blur_1d_3c(x, img->width, cur_src, img->width, temp_out);
     }
 
-    unsigned char *out_row = img->data + (RGB_CHANNELS * img->width * y);
+    unsigned char *out_row =
+        img->data  + (RGB_CHANNELS * img->width * y);
 
     int *row0 = temp_dst_rows[0], *row1 = temp_dst_rows[1],
         *row2 = temp_dst_rows[2], *row3 = temp_dst_rows[3],
         *row4 = temp_dst_rows[4];
 
-    int xx = blur_1d_v_simd(0, img->width * 3, row0, row1, row2, row3, row4,
-                            out_row);
-    int x = xx / 3;
-    out_row = out_row + (x * RGB_CHANNELS);
+    int x_vertical = blur_1d_v_simd(0, img->width * RGB_CHANNELS, row0, row1,
+                                    row2, row3, row4, out_row) /
+                     RGB_CHANNELS;
 
-    for (; x < img->width; ++x) {
-      int xx = x * RGB_CHANNELS;
+    out_row = out_row + (x_vertical * RGB_CHANNELS);
+
+    for (; x_vertical < img->width; ++x_vertical) {
+      int xx = x_vertical * RGB_CHANNELS;
       for (int c = 0; c < RGB_CHANNELS; c++) {
         out_row[0] = clamp((row0[xx + c] + row1[xx + c] + row2[xx + c] +
-                            row3[xx + c] + row4[xx + c]) >>
-                               4,
+                            row3[xx + c] + row4[xx + c]) /
+                               25,
                            0, 255);
 
         ++out_row;
@@ -152,10 +162,10 @@ void LendoMerge::blur_image(Image *img, int start, int end) {
     }
 
     rows[0] = rows[2], rows[1] = rows[3], rows[2] = rows[4];
-    rows[3] = img->data + (reflect_index(((y + 1) * 2) + 1, img->height)) *
-                              (img->width * RGB_CHANNELS);
-    rows[4] = img->data + (reflect_index(((y + 1) * 2) + 2, img->height)) *
-                              (img->width * RGB_CHANNELS);
+    rows[3] = img->data +
+              (reflect_index(y + 1, img->height)) * (img->width * RGB_CHANNELS);
+    rows[4] = img->data +
+              (reflect_index(y + 2, img->height)) * (img->width * RGB_CHANNELS);
 
     int *temp1 = temp_dst_rows[0], *temp2 = temp_dst_rows[1];
     temp_dst_rows[0] = temp_dst_rows[2], temp_dst_rows[1] = temp_dst_rows[3],
@@ -166,4 +176,10 @@ void LendoMerge::blur_image(Image *img, int start, int end) {
   }
 
   free(temp_dst_out);
+}
+
+void LendoMerge::blur_image(Image *img, int start, int end, int blur_strength) {
+  for (int s = 0; s < blur_strength; s++) {
+    blur_image_helper(img, start, end);
+  }
 }

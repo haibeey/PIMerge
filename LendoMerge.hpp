@@ -25,11 +25,12 @@
 #include <sstream>
 
 #if TARGET_OS_IPHONE
-#define LOGI(...) do { \
-    std::ostringstream oss; \
-    oss << __VA_ARGS__; \
-    std::cout << "[INFO] " << oss.str() << std::endl; \
-} while (0)
+#define LOGI(...)                                                              \
+  do {                                                                         \
+    std::ostringstream oss;                                                    \
+    oss << __VA_ARGS__;                                                        \
+    std::cout << "[INFO] " << oss.str() << std::endl;                          \
+  } while (0)
 
 #endif
 #endif
@@ -65,6 +66,9 @@ private:
                                bool add_height = true);
   bool add_height_to(Image *img);
   bool crop_panorama(Image *img);
+  void blur_image_helper(Image *img, int start, int end);
+  void blur_image(Image *img, int start, int end, int blur_strength = 25);
+
 
 public:
   LendoMerge(float hfov, float camera_rotation);
@@ -82,5 +86,4 @@ public:
   bool crop_panorama_by_path(std::string image_path, std::string out_filename);
   bool add_height_to_image_path(std::string image_path,
                                 std::string out_filename);
-  void blur_image(Image *img, int start, int end);
 };
