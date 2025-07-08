@@ -96,11 +96,14 @@ bool LendoMerge::findSeam(Image *img1, Image *img2, Image *mask1,
 
   for (int i = 0; i < img1->height; i++) {
     for (int j = 0; j < err_width; j++) {
-      unsigned char a = img1->data[(i * img1->width) + start + j];
-      unsigned char b = img2->data[(i * img2->width) + j];
+      unsigned char a = mask1->data[(i * mask1->width) + start + j];
+      unsigned char b = mask2->data[(i * mask2->width) + j];
       E[i][j] = (b - a) * (b - a);
     }
   }
+
+  std::memset(mask1->data, 255, mask1->channels * mask1->width * mask1->height);
+  std::memset(mask2->data, 255, mask2->channels * mask2->width * mask2->height);
 
   std::vector<std::vector<short>> dp(img1->height,
                                      std::vector<short>(err_width));
@@ -621,9 +624,8 @@ bool LendoMerge::merge_images_horizontal(std::vector<Image *> imgs,
 
   for (int i = 0; i < imgs.size() - 1; i++) {
     Image mask1 = convert_RGB_to_gray(imgs[i]);
-    std::memset(mask1.data, 255, mask1.channels * mask1.width * mask1.height);
     Image mask2 = convert_RGB_to_gray(imgs[i + 1]);
-    std::memset(mask2.data, 255, mask2.channels * mask2.width * mask2.height);
+
 
     if (!findSeam(imgs[i], imgs[i + 1], &mask1, &mask2))
       goto clean;
