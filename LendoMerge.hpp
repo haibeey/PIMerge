@@ -56,11 +56,9 @@ private:
   std::vector<double> compute_alpha(ImageF *prev_img, ImageF *curr_img);
   std::vector<double>
   compute_global_adjustment(std::vector<std::vector<double>> alphas);
-  void compute_map(int width, int height, int channels);
   bool merge_top_bottom(Image *img1, Image *img2, const char *merged_filename);
   void color_correct_sequence(const std::vector<Image *> &imgs);
   bool findSeam(Image *img1, Image *img2, Image *mask1, Image *mask2);
-  void bilinear_interpolate(Image *img);
   bool merge_images_horizontal(std::vector<Image *> imgs,
                                const char *merged_filename,
                                bool add_height = true);
