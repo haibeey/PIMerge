@@ -9,7 +9,6 @@
 int main() {
 
   LendoMerge lendoMerge(104, 60);
-
   lendoMerge.merge_image_path_horizontal(
       std::vector<std::string>{
           "files/debug/1.JPG",

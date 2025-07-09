@@ -56,13 +56,10 @@ void LendoMerge::blur_image_helper(Image *img, int start, int end,
                                    int blur_strength) {
   blur_strength = blur_strength + ((blur_strength % 2) == 0 ? 1 : 0);
 
-  std::cout << blur_strength << std::endl;
-
   int y = start;
-
+  int j = 0;
   unsigned char *rows[blur_strength];
 
-  int j = 0;
   for (int i = blur_strength / 2; i >= 0; i--) {
     rows[j] = img->data +
               (reflect_index(-i, img->height)) * img->width * RGB_CHANNELS;

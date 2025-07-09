@@ -84,8 +84,8 @@ LendoMerge::~LendoMerge() {
     destroy_image_f(map_y.get());
 }
 
-bool LendoMerge::findSeam(Image *img1, Image *img2, Image *mask1,
-                          Image *mask2) {
+bool LendoMerge::findSeam(Image *img1, Image *img2, Image *mask1, Image *mask2,
+                          bool is_new_img1, bool is_new_img2) {
 
   assert(img1->width == img2->width && img1->height == img2->height);
 
@@ -103,8 +103,15 @@ bool LendoMerge::findSeam(Image *img1, Image *img2, Image *mask1,
     }
   }
 
-  std::memset(mask1->data, 255, mask1->channels * mask1->width * mask1->height);
-  std::memset(mask2->data, 255, mask2->channels * mask2->width * mask2->height);
+  if (is_new_img1) {
+    std::memset(mask1->data, 255,
+                mask1->channels * mask1->width * mask1->height);
+  }
+
+  if (is_new_img2) {
+    std::memset(mask2->data, 255,
+                mask2->channels * mask2->width * mask2->height);
+  }
 
   std::vector<std::vector<short>> dp(img1->height,
                                      std::vector<short>(err_width));
@@ -296,6 +303,8 @@ void LendoMerge::color_correct_sequence(const std::vector<Image *> &imgs) {
   for (auto &imgf : linearize_images) {
     destroy_image_f(&imgf);
   }
+
+  linearize_images.clear();
 }
 
 void LendoMerge::downsample_image(std::string image_path,
@@ -375,7 +384,7 @@ bool LendoMerge::merge_images_horizontal(std::vector<Image *> imgs,
                                          const char *merged_filename,
                                          bool add_height) {
 
-  assert(imgs.size() > 0 && imgs.size() % 6 == 0);
+  assert(imgs.size() > 0);
   for (int i = 0; i < imgs.size(); i++) {
     if (imgs[i]->width <= 0 || imgs[i]->height <= 0) {
       return false;
@@ -396,30 +405,45 @@ bool LendoMerge::merge_images_horizontal(std::vector<Image *> imgs,
 
   int gap = (1 << bands);
 
-  for (int i = 0; i < imgs.size() - 1; i++) {
-    Image mask1 = convert_RGB_to_gray(imgs[i]);
-    Image mask2 = convert_RGB_to_gray(imgs[i + 1]);
+  for (int i = 0; i < imgs.size(); i++) {
+    masks[i] = convert_RGB_to_gray(imgs[i]);
+  }
 
-    if (!findSeam(imgs[i], imgs[i + 1], &mask1, &mask2))
-      goto clean;
+  for (int i = 0; i < imgs.size() - 1; i++) {
+    bool new_img_1 = false;
+    bool new_img_2 = false;
 
     int mul = 1;
     if (i == 0) {
       mul = 2;
+      new_img_1 = true;
+      new_img_2 = true;
+    } else {
+      new_img_2 = true;
     }
-    masks[i] = mask1;
-    masks[i + 1] = mask2;
-    out_width +=
-        (mask1.width * mul) - static_cast<int>(mask1.width * image_cut);
 
-    x_points[i + 1] = x_points[i] + mask2.width -
-                      static_cast<int>(mask1.width * image_cut) - gap;
+    if (!findSeam(imgs[i], imgs[i + 1], &masks[i], &masks[i + 1], new_img_1,
+                  new_img_2))
+      goto clean;
+
+    out_width +=
+        (masks[i].width * mul) - static_cast<int>(masks[i].width * image_cut);
   }
 
   out_size = {0, 0, out_width, imgs[0]->height};
   b = create_blender(MULTIBAND, out_size, bands);
 
+  out_width = 0;
+
   for (int i = 0; i < imgs.size(); i++) {
+    if (i < imgs.size() - 1) {
+      out_width +=
+          (masks[i].width * 2) - static_cast<int>(masks[i].width * image_cut);
+      x_points[i + 1] = x_points[i] + masks[i].width -
+                        static_cast<int>(masks[i].width * image_cut) - gap;
+      b->output_size = {0, 0, out_width, imgs[0]->height};
+    }
+
     feed(b, imgs[i], &masks[i], StitchPoint{x_points[i], 0});
   }
 

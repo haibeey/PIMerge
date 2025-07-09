@@ -59,7 +59,7 @@ private:
   compute_global_adjustment(std::vector<std::vector<double>> alphas);
   bool merge_top_bottom(Image *img1, Image *img2, const char *merged_filename);
   void color_correct_sequence(const std::vector<Image *> &imgs);
-  bool findSeam(Image *img1, Image *img2, Image *mask1, Image *mask2);
+  bool findSeam(Image *img1, Image *img2, Image *mask1, Image *mask2,bool is_new_img1, bool is_new_img2);
   bool merge_images_horizontal(std::vector<Image *> imgs,
                                const char *merged_filename,
                                bool add_height = true);
