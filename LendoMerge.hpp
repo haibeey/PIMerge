@@ -49,6 +49,7 @@ class LendoMerge {
 private:
   float image_cut;
   int to_add = 0;
+  int blur_strength = 100;
   std::unique_ptr<ImageF> map_x = nullptr, map_y = nullptr;
 
   void linearize(Image *img, ImageF *out);
@@ -64,12 +65,10 @@ private:
                                bool add_height = true);
   bool add_height_to(Image *img);
   bool crop_panorama(Image *img);
-  void blur_image_helper(Image *img, int start, int end);
-  void blur_image(Image *img, int start, int end, int blur_strength = 25);
-
+  void blur_image_helper(Image *img, int start, int end, int blur_strength);
 
 public:
-  LendoMerge(float hfov, float camera_rotation);
+  LendoMerge(float hfov, float camera_rotation, int blur_strength = 100);
   ~LendoMerge();
 
   void downsample_image(std::string image_path, std::string out_image_path,
@@ -84,4 +83,5 @@ public:
   bool crop_panorama_by_path(std::string image_path, std::string out_filename);
   bool add_height_to_image_path(std::string image_path,
                                 std::string out_filename);
+  void blur_image(Image *img, int start, int end);
 };

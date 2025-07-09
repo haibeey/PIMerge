@@ -1,7 +1,9 @@
 #include "LendoMerge.hpp"
 #include "jpeg.h"
+#include <chrono>
 #include <cstdio>
 #include <iostream>
+#include <thread>
 #include <vector>
 
 int main() {
@@ -18,16 +20,6 @@ int main() {
           "files/debug/6.JPG",
       },
       "out.jpg");
-
-
-
-  // Image img = create_image("files/debug/1.JPG");
-  // // std::cout << img.height << std::endl;
-  // lendoMerge.blur_image(&img, 0, 100);
-  // lendoMerge.blur_image(&img, img.height - 100, img.height);
-
-  // save_image(&img, "out1.jpg");
-  // destroy_image(&img);
 
   return 0;
 }

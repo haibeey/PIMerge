@@ -40,7 +40,8 @@ MergePoint getIntersection(const MergeLine &line1, const MergeLine &line2) {
   return MergePoint{px, py};
 }
 
-LendoMerge::LendoMerge(float hfov, float camera_rotation) {
+LendoMerge::LendoMerge(float hfov, float camera_rotation, int bs) {
+  blur_strength = bs;
   float half_angle_deg = hfov / 2.0;
 
   float half_angle_rad = DEG2RAD(half_angle_deg);
@@ -297,9 +298,6 @@ void LendoMerge::color_correct_sequence(const std::vector<Image *> &imgs) {
   }
 }
 
-
-
-
 void LendoMerge::downsample_image(std::string image_path,
                                   std::string out_image_path, int times) {
   Image img = create_image(image_path.c_str());
@@ -331,7 +329,7 @@ bool LendoMerge::add_height_to(Image *img) {
   Image new_img = create_empty_image(new_width, new_height, img->channels);
   int half_to_add = to_add / 2;
 
-  for (int y = 0; y < half_to_add; y++) {
+  for (int y = 0; y < half_to_add + 1; y++) {
     unsigned char *image_start =
         img->data +
         (((half_to_add - y) % img->height) * img->width * new_img.channels);
@@ -339,7 +337,6 @@ bool LendoMerge::add_height_to(Image *img) {
         new_img.data + ((y % new_height) * img->width * new_img.channels);
     memcpy(new_image_start, image_start, new_img.width * new_img.channels);
   }
-  blur_image(&new_img, 0, half_to_add + 1);
 
   int yy = 0;
   for (int y = (half_to_add);
@@ -363,6 +360,7 @@ bool LendoMerge::add_height_to(Image *img) {
     memcpy(new_image_start, image_start, new_img.width * new_img.channels);
   }
 
+  blur_image(&new_img, 0, half_to_add);
   blur_image(&new_img, img->height + half_to_add, new_img.height);
 
   free(img->data);
@@ -401,7 +399,6 @@ bool LendoMerge::merge_images_horizontal(std::vector<Image *> imgs,
   for (int i = 0; i < imgs.size() - 1; i++) {
     Image mask1 = convert_RGB_to_gray(imgs[i]);
     Image mask2 = convert_RGB_to_gray(imgs[i + 1]);
-
 
     if (!findSeam(imgs[i], imgs[i + 1], &mask1, &mask2))
       goto clean;
