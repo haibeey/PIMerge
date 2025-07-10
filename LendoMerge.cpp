@@ -370,7 +370,7 @@ bool LendoMerge::add_height_to(Image *img) {
   }
 
   blur_image(&new_img, 0, half_to_add);
-  blur_image(&new_img, img->height + half_to_add, new_img.height);
+  blur_image(&new_img, img->height + half_to_add , new_img.height);
 
   free(img->data);
   img->data = new_img.data;

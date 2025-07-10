@@ -54,6 +54,12 @@ int blur_1d_3c(int x, int width, unsigned char *cur_src, int src_width,
 
 void LendoMerge::blur_image_helper(Image *img, int start, int end,
                                    int blur_strength) {
+  blur_strength -= 1;
+  int p_blur_strength = max(0, end - start);
+  blur_strength = min(blur_strength, p_blur_strength);
+  if (blur_strength <= 0) {
+    return;
+  }
   blur_strength = blur_strength + ((blur_strength % 2) == 0 ? 1 : 0);
 
   int y = start;
@@ -97,7 +103,7 @@ void LendoMerge::blur_image_helper(Image *img, int start, int end,
 
       temp_out = temp_out + (x * RGB_CHANNELS);
 
-      for (; x <= img->width - ((blur_strength / 2) + 1); x += 5) {
+      for (; x <= img->width - (blur_strength + 1); x += 5) {
         int xx = max(0, x - (blur_strength / 2));
 
         simde__m256i sum = simde_mm256_setzero_si256();
@@ -105,8 +111,7 @@ void LendoMerge::blur_image_helper(Image *img, int start, int end,
           int next_index = xx + i;
           const unsigned char *cur_next_src =
               cur_src + (RGB_CHANNELS * next_index);
-          simde__m256i a = simde_mm256_cvtepu8_epi16(
-              simde_mm_loadu_si128((const simde__m128i *)cur_next_src));
+          simde__m256i a = simde_mm256_cvtepu8_epi16(simde_mm_loadu_si128((const simde__m128i *)cur_next_src));
 
           sum = simde_mm256_add_epi16(sum, a);
         }
