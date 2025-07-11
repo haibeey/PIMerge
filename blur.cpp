@@ -8,7 +8,6 @@
 int blur_1d_v_simd(int x, int width, int *horizontal_sums[],
                    unsigned char *out_row, int blur_strength) {
 
-  int pp = 0;
   for (; x < width - 8; x += 8) {
     simde__m256i sum = simde_mm256_setzero_si256();
     for (int i = 0; i < blur_strength; i++) {

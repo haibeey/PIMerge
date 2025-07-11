@@ -370,7 +370,7 @@ bool LendoMerge::add_height_to(Image *img) {
   }
 
   blur_image(&new_img, 0, half_to_add);
-  blur_image(&new_img, img->height + half_to_add , new_img.height);
+  blur_image(&new_img, img->height + half_to_add, new_img.height);
 
   free(img->data);
   img->data = new_img.data;
@@ -393,7 +393,9 @@ bool LendoMerge::merge_images_horizontal(std::vector<Image *> imgs,
   color_correct_sequence(imgs);
   bool result = false;
   int bands = 5;
-  int out_width = 0;
+  int out_width =
+      static_cast<int>(imgs[0]->width * imgs.size()) -
+      ((imgs.size() - 1) * static_cast<int>(imgs[0]->width * image_cut));
   std::vector<Image> masks(imgs.size());
   std::vector<int> x_points(imgs.size());
   for (int i = 0; i < imgs.size(); i++) {
@@ -413,9 +415,7 @@ bool LendoMerge::merge_images_horizontal(std::vector<Image *> imgs,
     bool new_img_1 = false;
     bool new_img_2 = false;
 
-    int mul = 1;
     if (i == 0) {
-      mul = 2;
       new_img_1 = true;
       new_img_2 = true;
     } else {
@@ -425,9 +425,6 @@ bool LendoMerge::merge_images_horizontal(std::vector<Image *> imgs,
     if (!findSeam(imgs[i], imgs[i + 1], &masks[i], &masks[i + 1], new_img_1,
                   new_img_2))
       goto clean;
-
-    out_width +=
-        (masks[i].width * mul) - static_cast<int>(masks[i].width * image_cut);
   }
 
   out_size = {0, 0, out_width, imgs[0]->height};
