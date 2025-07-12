@@ -396,7 +396,7 @@ bool LendoMerge::merge_images_horizontal(std::vector<Image *> imgs,
   int out_height = 0;
   int out_width =
       static_cast<int>(imgs[0]->width * imgs.size()) -
-      ((imgs.size() - 1) * static_cast<int>(imgs[0]->width * image_cut));
+      (static_cast<int>((imgs.size() - 1)) * static_cast<int>(imgs[0]->width * image_cut));
   std::vector<Image> masks(imgs.size());
   std::vector<int> x_points(imgs.size());
   for (int i = 0; i < imgs.size(); i++) {
@@ -489,16 +489,9 @@ bool LendoMerge::merge_image_path_horizontal(std::vector<std::string> imgs_path,
     imgs_s.push_back(create_image(img_path.c_str()));
   }
 
-  std::vector<Image> imgs_u(imgs_s.size());
-
-  for (int i = 0; i < imgs_s.size(); i++) {
-    imgs_u[i] = upsample(&imgs_s[i], 4);
-  }
-
   std::vector<Image *> imgs(imgs_s.size());
   for (int i = 0; i < imgs_s.size(); i++) {
-
-    imgs[i] = &imgs_u[i];
+    imgs[i] = &imgs_s[i];
   }
 
   bool result = merge_images_horizontal(imgs, out_filename.c_str(), add_height);
