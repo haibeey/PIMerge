@@ -68,7 +68,7 @@ private:
   void blur_image_helper(Image *img, int start, int end, int blur_strength);
 
 public:
-  LendoMerge(float hfov, float camera_rotation, int blur_strength = 50);
+  LendoMerge(float hfov, float camera_rotation, int blur_strength = 25);
   ~LendoMerge();
 
   void downsample_image(std::string image_path, std::string out_image_path,

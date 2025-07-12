@@ -393,6 +393,7 @@ bool LendoMerge::merge_images_horizontal(std::vector<Image *> imgs,
   color_correct_sequence(imgs);
   bool result = false;
   int bands = 5;
+  int out_height = 0;
   int out_width =
       static_cast<int>(imgs[0]->width * imgs.size()) -
       ((imgs.size() - 1) * static_cast<int>(imgs[0]->width * image_cut));
@@ -429,6 +430,7 @@ bool LendoMerge::merge_images_horizontal(std::vector<Image *> imgs,
 
   out_size = {0, 0, out_width, imgs[0]->height};
   b = create_blender(MULTIBAND, out_size, bands);
+  out_height = b->output_size.height;
 
   out_width = 0;
 
@@ -438,7 +440,7 @@ bool LendoMerge::merge_images_horizontal(std::vector<Image *> imgs,
           (masks[i].width * 2) - static_cast<int>(masks[i].width * image_cut);
       x_points[i + 1] = x_points[i] + masks[i].width -
                         static_cast<int>(masks[i].width * image_cut) - gap;
-      b->output_size = {0, 0, out_width, imgs[0]->height};
+      b->output_size = {0, 0, out_width, out_height};
     }
 
     feed(b, imgs[i], &masks[i], StitchPoint{x_points[i], 0});
@@ -487,9 +489,16 @@ bool LendoMerge::merge_image_path_horizontal(std::vector<std::string> imgs_path,
     imgs_s.push_back(create_image(img_path.c_str()));
   }
 
+  std::vector<Image> imgs_u(imgs_s.size());
+
+  for (int i = 0; i < imgs_s.size(); i++) {
+    imgs_u[i] = upsample(&imgs_s[i], 4);
+  }
+
   std::vector<Image *> imgs(imgs_s.size());
   for (int i = 0; i < imgs_s.size(); i++) {
-    imgs[i] = &imgs_s[i];
+
+    imgs[i] = &imgs_u[i];
   }
 
   bool result = merge_images_horizontal(imgs, out_filename.c_str(), add_height);
