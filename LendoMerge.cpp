@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstring>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -19,6 +20,30 @@ float distanceBetween(const MergePoint &p1, const MergePoint &p2) {
   float dx = p2.x - p1.x;
   float dy = p2.y - p1.y;
   return std::sqrt(dx * dx + dy * dy);
+}
+
+// Compute Sobel gradient magnitude at pixel (y, x) across all channels.
+// High values = strong edges (bad seam locations). Low values = smooth regions (good seam locations).
+static float gradient_magnitude(const Image *img, int y, int x) {
+  const int w = img->width, h = img->height, c = img->channels;
+  const int x0 = std::max(0, x - 1), x2 = std::min(w - 1, x + 1);
+  const int y0 = std::max(0, y - 1), y2 = std::min(h - 1, y + 1);
+  float gx_sq = 0.0f, gy_sq = 0.0f;
+  for (int ch = 0; ch < c; ch++) {
+    float tl = img->data[(y0 * w + x0) * c + ch];
+    float tc = img->data[(y0 * w + x) * c + ch];
+    float tr = img->data[(y0 * w + x2) * c + ch];
+    float ml = img->data[(y * w + x0) * c + ch];
+    float mr = img->data[(y * w + x2) * c + ch];
+    float bl = img->data[(y2 * w + x0) * c + ch];
+    float bc = img->data[(y2 * w + x) * c + ch];
+    float br = img->data[(y2 * w + x2) * c + ch];
+    float gxc = -tl + tr - 2.0f * ml + 2.0f * mr - bl + br;
+    float gyc = tl + 2.0f * tc + tr - bl - 2.0f * bc - br;
+    gx_sq += gxc * gxc;
+    gy_sq += gyc * gyc;
+  }
+  return std::sqrt(gx_sq + gy_sq);
 }
 
 MergePoint getIntersection(const MergeLine &line1, const MergeLine &line2) {
@@ -89,17 +114,30 @@ bool LendoMerge::findSeam(Image *img1, Image *img2, Image *mask1, Image *mask2,
 
   assert(img1->width == img2->width && img1->height == img2->height);
 
-  int err_width = static_cast<int>(img1->width * image_cut);
-  int start = static_cast<int>(img1->width * (1 - image_cut));
+  const int err_width = static_cast<int>(img1->width * image_cut);
+  const int start = static_cast<int>(img1->width * (1 - image_cut));
+  const float INF = std::numeric_limits<float>::max();
 
-  std::vector<std::vector<short>> E(img1->height,
-                                    std::vector<short>(err_width));
+  // Energy function: RGB color difference + Sobel gradient magnitude.
+  // Seam prefers regions where both images look similar (low color diff)
+  // AND have low texture (low gradient) — avoids cutting through visible edges.
+  std::vector<std::vector<float>> E(img1->height,
+                                    std::vector<float>(err_width));
 
   for (int i = 0; i < img1->height; i++) {
     for (int j = 0; j < err_width; j++) {
-      unsigned char a = mask1->data[(i * mask1->width) + start + j];
-      unsigned char b = mask2->data[(i * mask2->width) + j];
-      E[i][j] = (b - a) * (b - a);
+      // Per-channel squared color difference in the overlap region
+      float color_diff = 0.0f;
+      for (int ch = 0; ch < img1->channels; ch++) {
+        float a = img1->data[((i * img1->width) + start + j) * img1->channels + ch];
+        float b = img2->data[((i * img2->width) + j) * img2->channels + ch];
+        float d = b - a;
+        color_diff += d * d;
+      }
+      // Gradient penalty: discourage seams through edges in either image
+      float grad1 = gradient_magnitude(img1, i, start + j);
+      float grad2 = gradient_magnitude(img2, i, j);
+      E[i][j] = color_diff + (grad1 + grad2);
     }
   }
 
@@ -113,77 +151,67 @@ bool LendoMerge::findSeam(Image *img1, Image *img2, Image *mask1, Image *mask2,
                 mask2->channels * mask2->width * mask2->height);
   }
 
-  std::vector<std::vector<short>> dp(img1->height,
-                                     std::vector<short>(err_width));
+  // Dynamic programming: find minimum-cost vertical seam through the overlap
+  std::vector<std::vector<float>> dp(img1->height,
+                                     std::vector<float>(err_width));
   for (int i = 0; i < err_width; i++) {
     dp[0][i] = E[0][i];
   }
 
   for (int i = 1; i < img1->height; i++) {
     for (int j = 0; j < err_width; j++) {
-      int a, b, c;
-      c = b = a = 1 << 31;
-
-      if (j - 1 >= 0) {
-        a = dp[i - 1][j - 1];
-      }
-      b = dp[i - 1][j];
-      if (j + 1 < err_width) {
-        c = dp[i - 1][j + 1];
-      }
-
-      dp[i][j] = E[i][j] + std::min(a, std::min(b, c));
+      float a = (j > 0) ? dp[i - 1][j - 1] : INF;
+      float b = dp[i - 1][j];
+      float c = (j < err_width - 1) ? dp[i - 1][j + 1] : INF;
+      dp[i][j] = E[i][j] + std::min({a, b, c});
     }
   }
 
   E.clear();
 
-  auto min_element = std::min_element(dp[img1->height - 1].begin(),
-                                      dp[img1->height - 1].end());
+  // Find minimum-cost entry at the bottom row
+  auto min_it = std::min_element(dp[img1->height - 1].begin(),
+                                 dp[img1->height - 1].end());
   int index = static_cast<int>(
-      std::distance(dp[img1->height - 1].begin(), min_element));
+      std::distance(dp[img1->height - 1].begin(), min_it));
 
+  // Backtrack from bottom to top, building path in reverse order
+  // path[0] = seam column at row (height-1), path[height-1] = seam column at row 0
   std::vector<int> path;
+  path.reserve(img1->height);
   path.push_back(index);
 
   for (int i = img1->height - 2; i >= 0; i--) {
-    int a, b, c;
-    c = b = a = 1 << 31;
+    float a = (index > 0) ? dp[i][index - 1] : INF;
+    float b = dp[i][index];
+    float c = (index < err_width - 1) ? dp[i][index + 1] : INF;
 
-    if (index - 1 >= 0) {
-      a = dp[i][index - 1];
+    if (a <= b && a <= c) {
+      index--;
+    } else if (c < a && c < b) {
+      index++;
     }
-    b = dp[i][index];
-    if (index + 1 < err_width) {
-      c = dp[i][index + 1];
-    }
-
-    if (a <= b && a <= c && index - 1 >= 0) {
-      index = index - 1;
-    } else if (c <= a && c <= b && index + 1 < err_width) {
-      index = index + 1;
-    }
-
     path.push_back(index);
   }
 
   dp.clear();
 
-  for (int i = img1->height - 1; i >= 0; i--) {
-    int a = path[i];
+  // Reverse so that path[i] = seam column offset (within overlap) at row i
+  std::reverse(path.begin(), path.end());
 
-    int s = (i * img1->width) + start;
-    int m = (i * img1->width) + start + a;
-    int e = (i * img1->width) + img1->width;
+  // Apply binary masks: mask1 is white left of seam, mask2 is white right of seam
+  for (int i = 0; i < img1->height; i++) {
+    const int a = path[i];
+    const int row_base = i * img1->width;
 
-    std::memset(mask1->data + s, 255, m - s);
-    std::memset(mask1->data + m, 0, e - m);
+    // mask1: white [start .. start+a), black [start+a .. width)
+    std::memset(mask1->data + row_base + start, 255, a);
+    std::memset(mask1->data + row_base + start + a, 0,
+                img1->width - start - a);
 
-    s = (i * img1->width);
-    m = (i * img1->width) + a;
-
-    std::memset(mask2->data + s, 0, m - s);
-    std::memset(mask2->data + m, 255, e - m);
+    // mask2: black [0 .. a), white [a .. width)
+    std::memset(mask2->data + row_base, 0, a);
+    std::memset(mask2->data + row_base + a, 255, img2->width - a);
   }
 
   return true;
@@ -371,6 +399,41 @@ bool LendoMerge::add_height_to(Image *img) {
 
   blur_image(&new_img, 0, half_to_add);
   blur_image(&new_img, img->height + half_to_add, new_img.height);
+
+  // Feather the transition between the blurred padding and the original image.
+  // Each padding row is blended toward the adjacent original edge row so there
+  // is no visible hard seam at the boundary.
+  if (half_to_add > 1) {
+    const int W = new_img.width * new_img.channels;
+
+    // Top: row half_to_add is the first original row.
+    // Padding rows go from fully blurred (y=0) to fully original (y=half_to_add-1).
+    const unsigned char *orig_top = new_img.data + half_to_add * W;
+    for (int y = 0; y < half_to_add; y++) {
+      float t = (float)y / (half_to_add - 1);                 // 0 → 1
+      float alpha = t * t * (3.0f - 2.0f * t);                // smoothstep
+      unsigned char *row = new_img.data + y * W;
+      for (int x = 0; x < W; x++) {
+        row[x] = static_cast<unsigned char>(
+            alpha * orig_top[x] + (1.0f - alpha) * row[x] + 0.5f);
+      }
+    }
+
+    // Bottom: row half_to_add+img->height-1 is the last original row.
+    // Padding rows go from fully original (first row after original) to fully blurred (far edge).
+    const int bot_start = half_to_add + img->height;
+    const unsigned char *orig_bot =
+        new_img.data + (bot_start - 1) * W;
+    for (int y = bot_start; y < new_height; y++) {
+      float t = (float)(new_height - 1 - y) / (half_to_add - 1);  // 1 → 0
+      float alpha = t * t * (3.0f - 2.0f * t);                     // smoothstep
+      unsigned char *row = new_img.data + y * W;
+      for (int x = 0; x < W; x++) {
+        row[x] = static_cast<unsigned char>(
+            alpha * orig_bot[x] + (1.0f - alpha) * row[x] + 0.5f);
+      }
+    }
+  }
 
   free(img->data);
   img->data = new_img.data;
