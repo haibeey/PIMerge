@@ -1,30 +1,69 @@
-cmake_minimum_required(VERSION 2.8.12...3.28)
+cmake_minimum_required(VERSION 3.16)
 
-project(LendoMerge LANGUAGES CXX)
-set(CMAKE_CXX_STANDARD 14)
+project(PIMerge LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(BUILD_OS      "${OS}")
-set(BUILD_ARCH      "${ARCH}")
+
+set(BUILD_OS "${OS}")
+set(BUILD_ARCH "${ARCH}")
+
+include(ExternalProject)
 
 if(NOT DEFINED BUILD_OS OR BUILD_OS STREQUAL "")
-    message(FATAL_ERROR "OS is not set. Please set the OS environment variable. set with -DOS=mac etc")
+    message(FATAL_ERROR "OS is not set. Use -DOS=<platform>")
 endif()
 
 if(NOT DEFINED BUILD_ARCH OR BUILD_ARCH STREQUAL "")
-    message(FATAL_ERROR "ARCH is not set. Please set the ARCH environment variable. et with -DARCH=x86_64 etc")
-endif()
-set(STITCHER_PATH "${CMAKE_SOURCE_DIR}/libs/stitcher/${BUILD_OS}/${BUILD_ARCH}")
-set(LIBTURBOJPEG_PATH "${CMAKE_SOURCE_DIR}/libs/libturbojpeg/${BUILD_OS}/${BUILD_ARCH}")
-
-if(CMAKE_OS)
-    message(FATAL_ERROR
-      "CMAKE_INSTALL_PREFIX not set. "
-      "Please provide a prefix using -DCMAKE_INSTALL_PREFIX=<path>")
+    message(FATAL_ERROR "ARCH is not set. Use -DARCH=<arch>")
 endif()
 
-include_directories(${CMAKE_SOURCE_DIR}/header-files/stitcher)
-link_directories(${STITCHER_PATH} ${LIBTURBOJPEG_PATH})
+ExternalProject_Add(
+    libjpeg_turbo_project
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/libjpeg-turbo
+    CMAKE_ARGS
+        -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/libjpeg-turbo-install
+        -DENABLE_SHARED=OFF
+        -DENABLE_STATIC=ON
+        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+)
 
-add_executable(${PROJECT_NAME} LendoMerge.cpp blur.cpp main.cpp)
+ExternalProject_Add(
+    stitcher_project
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/stitcher
+    CMAKE_ARGS
+        -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/stitcher-install
+        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+        -DLIBJPEG_TURBO_ROOT=${CMAKE_BINARY_DIR}/libjpeg-turbo-install
+        -DCMAKE_C_FLAGS=-I${CMAKE_SOURCE_DIR}
+        -DCMAKE_CXX_FLAGS=-I${CMAKE_SOURCE_DIR}
+)
+
+add_executable(
+    ${PROJECT_NAME}
+    PIMerge.cpp
+    Blur.cpp
+    main.cpp
+)
+
+add_dependencies(
+    ${PROJECT_NAME}
+    libjpeg_turbo_project
+    stitcher_project
+)
+
 target_compile_options(${PROJECT_NAME} PRIVATE -O3)
-target_link_libraries(${PROJECT_NAME} PRIVATE NativeStitcher turbojpeg)
+
+target_include_directories(
+    ${PROJECT_NAME}
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/header-files/stitcher
+        ${CMAKE_BINARY_DIR}/libjpeg-turbo-install/include
+)
+
+target_link_libraries(
+    ${PROJECT_NAME}
+    PRIVATE
+        ${CMAKE_BINARY_DIR}/libjpeg-turbo-install/lib/libturbojpeg.a
+        ${CMAKE_BINARY_DIR}/stitcher-install/lib/libNativeStitcher.a
+)

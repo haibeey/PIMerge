@@ -1,11 +1,8 @@
-#include "LendoMerge.hpp"
+#include "PIMerge.hpp"
+#include "PiImage.hpp"
 #include "jpeg.h"
-#include <chrono>
-#include <cstdio>
-#include <fstream>
 #include <iostream>
 #include <string>
-#include <thread>
 #include <vector>
 
 #if defined(_WIN32)
@@ -47,27 +44,21 @@ int main() {
   print_memory_usage("Start");
   LendoMerge lendoMerge(104, 60);
   print_memory_usage("After LendoMerge init");
-  lendoMerge.merge_image_path_horizontal(
-      std::vector<std::string>{
-          "files/debug/1.JPG",
-          "files/debug/2.JPG",
-          "files/debug/3.JPG",
-          "files/debug/4.JPG",
-          "files/debug/5.JPG",
-          "files/debug/6.JPG",
-      },
-      "out.jpg");
+  std::vector<std::string> imgs =     std::vector<std::string>{
+      "files/debug/1.JPG",
+      "files/debug/2.JPG",
+      "files/debug/3.JPG",
+      "files/debug/4.JPG",
+      "files/debug/5.JPG",
+      "files/debug/6.JPG",
+  };
+  lendoMerge.merge_image_path_horizontal(imgs,"out.jpg");
 
-  // std::this_thread::sleep_for(std::chrono::seconds(10));
-  Image img = create_image("files/debug/1.JPG");
+  PiImageU8 img = PiImageU8(create_image("files/debug/1.JPG"));
   print_memory_usage("After create_image");
-  lendoMerge.blur_image(&img, 0, img.height - img.height/2);
+  lendoMerge.blur_image(img, 0, img.height() - img.height()/2);
   print_memory_usage("After blur_image");
-  save_image(&img, "out1.jpg");
+  img.save( "out1.jpg");
   print_memory_usage("After save_image");
-  destroy_image(&img);
-  print_memory_usage("After destroy_image");
-  std::cout << "done" << std::endl;
-  print_memory_usage("After done print");
   return 0;
 }

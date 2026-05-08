@@ -5,7 +5,11 @@ rm -rf iosbuild/*
 mkdir -p iosbuild/stitcher
 mkdir -p iosbuild/libturbojpeg
 
-STITCHER_BUILD_PATH=/Users/haibeey/p-h/lendo-stuff/stitcher/installs
+if [ -e! "$STITCHER_BUILD_PATH" ]; then
+  echo "Path not found: $STITCHER_BUILD_PATH"
+  exit 1
+fi
+
 
 SIM_ARM_STITCHER_LIB=$STITCHER_BUILD_PATH/native-stitcher/ios-sim/arm64/lib/libNativeStitcher.a
 SIM_X86_STITCHER_LIB=$STITCHER_BUILD_PATH/native-stitcher/ios-sim/x86_64/lib/libNativeStitcher.a

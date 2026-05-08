@@ -1,9 +1,10 @@
 
-#include "LendoMerge.hpp"
+#include "PIMerge.hpp"
+#include "PiImage.hpp"
 #include "simde/simde/x86/avx2.h"
 #include "simde/simde/x86/sse2.h"
 #include <cstring>
-#include <iostream>
+
 
 int blur_1d_v_simd(int x, int width, int *horizontal_sums[],
                    unsigned char *out_row, int blur_strength) {
@@ -51,8 +52,7 @@ int blur_1d_3c(int x, int width, unsigned char *cur_src, int src_width,
   return x;
 }
 
-void LendoMerge::blur_image_helper(Image *img, int start, int end,
-                                   int blur_strength) {
+void LendoMerge::blur_image_helper(PiImageU8 &img, int start, int end, int blur_strength) {
   blur_strength -= 1;
   int p_blur_strength = max(0, end - start);
   blur_strength = min(blur_strength, p_blur_strength);
@@ -66,26 +66,26 @@ void LendoMerge::blur_image_helper(Image *img, int start, int end,
   unsigned char *rows[blur_strength];
 
   for (int i = blur_strength / 2; i >= 0; i--) {
-    rows[j] = img->data +
-              (reflect_index(-i, img->height)) * img->width * RGB_CHANNELS;
+    rows[j] = img.data() +
+              (reflect_index(-i, img.height())) * img.width() * RGB_CHANNELS;
     j++;
   }
 
   for (int i = 1; i <= blur_strength / 2; i++) {
     rows[j] =
-        img->data + (reflect_index(i, img->height)) * img->width * RGB_CHANNELS;
+        img.data() + (reflect_index(i, img.height())) * img.width() * RGB_CHANNELS;
     j++;
   }
 
-  int *temp_dst_out =
-      (int *)malloc(blur_strength * img->width * RGB_CHANNELS * sizeof(int));
+  auto temp_dst_out =
+      std::make_unique<int[]>(blur_strength *  img.width() * RGB_CHANNELS);
   if (!temp_dst_out)
     return;
 
   int *temp_dst_rows[blur_strength];
 
   for (int i = 0; i < blur_strength; i++) {
-    temp_dst_rows[i] = temp_dst_out + (i * img->width * RGB_CHANNELS);
+      temp_dst_rows[i] = temp_dst_out.get() + (i * img.width() * RGB_CHANNELS);
   }
 
   int s_y = -blur_strength / 2;
@@ -97,12 +97,12 @@ void LendoMerge::blur_image_helper(Image *img, int start, int end,
 
       unsigned char *cur_src = rows[s_y + (blur_strength / 2)];
       int *temp_out = temp_dst_rows[s_y + (blur_strength / 2)];
-      x = blur_1d_3c(x, min(blur_strength / 2, img->width), cur_src, img->width,
+      x = blur_1d_3c(x, min(blur_strength / 2, img.width()), cur_src, img.width(),
                      temp_out, blur_strength);
 
       temp_out = temp_out + (x * RGB_CHANNELS);
 
-      for (; x <= img->width - (blur_strength + 1); x += 5) {
+      for (; x <= img.width() - (blur_strength + 1); x += 5) {
         int xx = max(0, x - (blur_strength / 2));
 
         simde__m256i sum = simde_mm256_setzero_si256();
@@ -126,19 +126,19 @@ void LendoMerge::blur_image_helper(Image *img, int start, int end,
         temp_out += (5 * RGB_CHANNELS);
       }
 
-      x = blur_1d_3c(x, img->width, cur_src, img->width, temp_out,
+      x = blur_1d_3c(x, img.width(), cur_src, img.width(), temp_out,
                      blur_strength);
     }
 
-    unsigned char *out_row = img->data + (RGB_CHANNELS * img->width * y);
+    unsigned char *out_row = img.data() + (RGB_CHANNELS * img.width() * y);
 
-    int x_vertical = blur_1d_v_simd(0, img->width * RGB_CHANNELS, temp_dst_rows,
+    int x_vertical = blur_1d_v_simd(0, img.width() * RGB_CHANNELS, temp_dst_rows,
                                     out_row, blur_strength) /
                      RGB_CHANNELS;
 
     out_row = out_row + (x_vertical * RGB_CHANNELS);
 
-    for (; x_vertical < img->width; ++x_vertical) {
+    for (; x_vertical < img.width(); ++x_vertical) {
       int xx = x_vertical * RGB_CHANNELS;
       for (int c = 0; c < RGB_CHANNELS; c++) {
         int sum = 0;
@@ -156,8 +156,8 @@ void LendoMerge::blur_image_helper(Image *img, int start, int end,
 
     int add = 1;
     for (int i = blur_strength / 2; i < blur_strength; i++) {
-      rows[i] = img->data + (reflect_index(y + add, img->height)) *
-                                (img->width * RGB_CHANNELS);
+      rows[i] = img.data() + (reflect_index(y + add, img.height())) *
+                                (img.width() * RGB_CHANNELS);
       add++;
     }
 
@@ -175,9 +175,8 @@ void LendoMerge::blur_image_helper(Image *img, int start, int end,
     s_y = 1;
   }
 
-  free(temp_dst_out);
 }
 
-void LendoMerge::blur_image(Image *img, int start, int end) {
-  blur_image_helper(img, start, end, blur_strength);
+void LendoMerge::blur_image(PiImageU8 &img, int start, int end) {
+  blur_image_helper( img, start, end, blur_strength);
 }

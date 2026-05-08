@@ -1,0 +1,9 @@
+[submodule "simde"]
+	path = simde
+	url = https://github.com/simd-everywhere/simde.git
+[submodule "stitcher"]
+	path = stitcher
+	url = https://github.com/haibeey/stitcher.git
+[submodule "libjpeg-turbo"]
+	path = libjpeg-turbo
+	url = https://github.com/libjpeg-turbo/libjpeg-turbo.git
