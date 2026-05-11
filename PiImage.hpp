@@ -1,7 +1,7 @@
 #pragma once
 
 #include "header-files/stitcher/image_operations.hpp"
-#include "header-files/stitcher/jpeg.h"
+#include "header-files/stitcher/jpeg.hpp"
 #include <stdexcept>
 #include <string>
 #include <type_traits>

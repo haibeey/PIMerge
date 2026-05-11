@@ -10,7 +10,7 @@ extern "C" {
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
-#include "jpeg.h"
+#include "jpeg.hpp"
 #include "utils.hpp"
 
 static const float GAUSSIAN_KERNEL[5][5] = {

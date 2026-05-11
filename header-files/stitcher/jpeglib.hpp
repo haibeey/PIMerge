@@ -39,9 +39,9 @@
  */
 
 #ifndef JCONFIG_INCLUDED        /* in case jinclude.h already did */
-#include "jconfig.h"            /* widely used configuration options */
+#include "jconfig.hpp"            /* widely used configuration options */
 #endif
-#include "jmorecfg.h"           /* seldom changed options */
+#include "jmorecfg.hpp"           /* seldom changed options */
 
 
 #ifdef __cplusplus

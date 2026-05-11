@@ -13,7 +13,7 @@
 #define DEG2RAD(x) ((x) * M_PI / 180.0)
 
 #include "blending.hpp"
-#include "jpeg.h"
+#include "jpeg.hpp"
 #include <vector>
 
 #ifdef __ANDROID__

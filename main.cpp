@@ -1,6 +1,6 @@
 #include "PIMerge.hpp"
 #include "PiImage.hpp"
-#include "jpeg.h"
+#include "jpeg.hpp"
 #include <iostream>
 #include <string>
 #include <vector>
