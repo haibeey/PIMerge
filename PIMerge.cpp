@@ -321,15 +321,14 @@ void LendoMerge::color_correct_sequence(std::vector<PiImageU8> &imgs) {
 }
 
 void LendoMerge::downsample_image(std::string image_path,
-                                  std::string out_image_path, int times) {
+                                  std::string out_image_path, int max_width,int times) {
   PiImageU8 img = PiImageU8(image_path);
   if (img.width() <= 0 || img.height() <= 0) {
     return;
   }
   Image down;
-  while (img.width() > 400 && times > 0) {
+  while (img.width() > max_width && times > 0) {
     down = downsample(img.raw());
-    destroy_image(img.raw());
     img = PiImageU8(down);
     times--;
   }

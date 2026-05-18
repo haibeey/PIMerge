@@ -60,5 +60,10 @@ int main() {
   print_memory_usage("After blur_image");
   img.save( "out1.jpg");
   print_memory_usage("After save_image");
+
+  PiImageU8 img2 = PiImageU8(create_image("files/debug/1.JPG"));
+  print_memory_usage("After create_image");
+  lendoMerge.downsample_image("files/debug/1.JPG","1.JPG",200, 2);
+  print_memory_usage("After downsample");
   return 0;
 }

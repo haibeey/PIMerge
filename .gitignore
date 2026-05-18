@@ -12,3 +12,4 @@ files/*
 iosbuild/*
 .env
 test.sh
+*.JPG
